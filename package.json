@@ -1,0 +1,24 @@
+{
+  "name": "docenter-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@ilovepdf/ilovepdf-nodejs": "^0.3.1",
+    "@paystack/paystack-sdk": "^1.0.1",
+    "axios": "^1.17.0",
+    "dotenv": "^17.4.2",
+    "form-data": "^4.0.5",
+    "https-proxy-agent": "^6.0.0",
+    "multer": "^2.1.1",
+    "sharp": "^0.35.1",
+    "telegraf": "^4.16.3"
+  }
+}
