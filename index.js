@@ -7,6 +7,11 @@
 require('dotenv').config(); // Load all variables from .env file
 try {
 	const { startBot } = require('./src/bot');
+	const { startServer } = require('./src/server');
+
+	// Start HTTP server (webhooks/callbacks)
+	try { startServer(); } catch (e) { console.error('Failed to start server:', e && e.message); }
+
 	// Start the bot
 	startBot();
 } catch (err) {

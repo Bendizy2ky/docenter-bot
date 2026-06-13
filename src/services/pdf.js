@@ -138,10 +138,16 @@ async function processAndDownload(token, server, taskId, serverFilename, taskTyp
   );
 
   const buf = Buffer.from(downloadResponse.data);
-  // Basic validation: a DOCX is a ZIP file and should start with PK\x03\x04
-  if (!isZipBuffer(buf)) {
-    console.error('processAndDownload: downloaded result does not appear to be a ZIP/DOCX file. First bytes:', buf.slice(0,8));
-    throw new Error('Downloaded result invalid or not a downloadable file (not a ZIP/DOCX).');
+  // Basic validation for DOCX/ZIP outputs only.
+  // iLovePDF returns different binary types depending on the task (PDF for compress,
+  // DOCX for office conversions). Only enforce ZIP/DOCX check when we expect a DOCX.
+  const expectsDocx = (extraParams && String(extraParams.output_format || '').toLowerCase() === 'docx')
+    || (typeof taskType === 'string' && /office|pdf2office|pdfoffice/i.test(taskType));
+  if (expectsDocx) {
+    if (!isZipBuffer(buf)) {
+      console.error('processAndDownload: downloaded result does not appear to be a ZIP/DOCX file. First bytes:', buf.slice(0,8));
+      throw new Error('Downloaded result invalid or not a downloadable file (not a ZIP/DOCX).');
+    }
   }
 
   return buf;

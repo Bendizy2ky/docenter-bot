@@ -41,27 +41,38 @@ async function generatePaymentLink(telegramId, packKey) {
     // Format: telegramId_packKey_timestamp
     const reference = `docenter_${telegramId}_${packKey}_${Date.now()}`;
 
+    // Build payload for Paystack initialize. Optionally include a callback_url
+    // so users are redirected back to our app after payment.
+    const callbackHost = process.env.APP_URL ? String(process.env.APP_URL).replace(/\/$/, '') : null;
+    const callbackPath = process.env.PAYSTACK_CALLBACK_PATH || '/paystack/callback';
+    const callbackUrl = callbackHost ? `${callbackHost}${callbackPath}` : undefined;
+
+    const payload = {
+      amount: amountInKobo,
+      email: `user${telegramId}@docenter.ng`, // Paystack requires an email
+      reference: reference,
+      currency: 'NGN',
+      metadata: {
+        telegram_id: telegramId,       // We use this in the webhook
+        pack_key: packKey,             // To know which pack was bought
+        credits: pack.credits,         // Credits to add after payment
+        custom_fields: [
+          {
+            display_name: 'Pack',
+            variable_name: 'pack',
+            value: pack.name,
+          },
+        ],
+      },
+    };
+
+    // Prefer explicit env var PAYSTACK_CALLBACK_URL if provided
+    payload.callback_url = process.env.PAYSTACK_CALLBACK_URL || callbackUrl;
+
     // Call Paystack API to initialize a transaction
     const response = await axios.post(
       'https://api.paystack.co/transaction/initialize',
-      {
-        amount: amountInKobo,
-        email: `user${telegramId}@docenter.ng`, // Paystack requires an email
-        reference: reference,
-        currency: 'NGN',
-        metadata: {
-          telegram_id: telegramId,       // We use this in the webhook
-          pack_key: packKey,             // To know which pack was bought
-          credits: pack.credits,         // Credits to add after payment
-          custom_fields: [
-            {
-              display_name: 'Pack',
-              variable_name: 'pack',
-              value: pack.name,
-            },
-          ],
-        },
-      },
+      payload,
       {
         headers: {
           Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,

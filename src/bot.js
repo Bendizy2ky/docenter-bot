@@ -56,10 +56,11 @@ const TOOL_COSTS = {
 };
 
 // ─────────────────────────────────────────────
-// In-Memory Storage
+// Persistent Credit Storage
+// Uses src/credits.js to persist balances to credits.json
 // ─────────────────────────────────────────────
-const userCredits = new Map();
-const userState   = new Map();
+const { getCredits, addCredits, deductCredits } = require('./credits');
+const userState = new Map();
 // Tracks the processing message id for each user so global errors can clear it
 const processingMessages = new Map();
 
@@ -87,25 +88,7 @@ async function sendMarkdownSafe(ctx, text) {
   }
 }
 
-// ─────────────────────────────────────────────
-// Credit Helpers
-// ─────────────────────────────────────────────
-
-function getCredits(userId) {
-  if (!userCredits.has(userId)) {
-    userCredits.set(userId, 5); // Every new user starts with 5 free starter credits
-  }
-  return userCredits.get(userId);
-}
-
-function addCredits(userId, amount) {
-  userCredits.set(userId, getCredits(userId) + amount);
-}
-
-function deductCredits(userId, amount) {
-  userCredits.set(userId, getCredits(userId) - amount);
-}
-
+// (Credit helpers moved to src/credits.js)
 // ─────────────────────────────────────────────
 // File Download Helper
 // ─────────────────────────────────────────────
@@ -171,13 +154,32 @@ async function downloadTelegramFile(fileId, botOrTokenOrCtx) {
  */
 async function safelySendFile(ctx, buffer, filename, caption) {
   try {
-    await ctx.replyWithDocument(
-      { source: buffer, filename: filename },
-      { caption: caption, parse_mode: 'Markdown' }
+    const FormData = require('form-data');
+    const form = new FormData();
+    form.append('chat_id', String(ctx.chat.id));
+    form.append('caption', caption || '');
+    form.append('parse_mode', 'Markdown');
+    form.append('document', buffer, {
+      filename: filename,
+      knownLength: buffer.length,
+    });
+
+    const response = await axios.post(
+      `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendDocument`,
+      form,
+      {
+        headers: { ...form.getHeaders() },
+        timeout: 120000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      }
     );
-    return true;
+    return !!(response.data && response.data.ok);
   } catch (err) {
-    console.error(`Failed to send file "${filename}":`, err.message);
+    console.error(
+      'safelySendFile error:',
+      err.response ? err.response.data : err.message
+    );
     return false;
   }
 }
@@ -217,7 +219,14 @@ function startBot() {
     const adminId = process.env.ADMIN_TELEGRAM_ID;
     if (adminId) {
       const adminCredits = Number(process.env.ADMIN_CREDITS) || 30;
-      userCredits.set(adminId.toString(), adminCredits);
+      try {
+        const current = Number(getCredits(adminId.toString()) || 0);
+        if (current < adminCredits) {
+          addCredits(adminId.toString(), adminCredits - current);
+        }
+      } catch (e) {
+        console.error('Failed to seed admin credits (credits module):', e && e.message);
+      }
       console.log(`Admin user ${adminId} seeded with ${adminCredits} credits`);
     }
   } catch (e) {
