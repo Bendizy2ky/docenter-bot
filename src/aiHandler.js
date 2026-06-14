@@ -49,14 +49,14 @@ module.exports = (bot, shared) => {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const seed = Math.floor(Math.random() * 1000000);
-          // Using the specialized 'image' subdomain for direct binary output
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=turbo`;
+          // Senior Fix: Use the more stable API endpoint and ensure binary output
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
           
           const response = await axios.get(imageUrl, { 
             responseType: 'arraybuffer', 
             timeout: 60000, // 60s per individual attempt
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
               'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
               'Cache-Control': 'no-cache'
             }

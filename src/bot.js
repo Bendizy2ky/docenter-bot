@@ -784,10 +784,14 @@ async function startBot() {
       const cmd = cleaned.replace(/^\/+/, '').replace(/@.*$/, '').toLowerCase();
       const userId = ctx.from.id.toString();
 
-      // --- FIX: Don't interfere if user is in a tool state (like AI Generation) ---
+      // Senior Fix: Prevent middleware leakage. If user has an active tool state, 
+      // we assume a modular handler is processing this.
       const state = userState.get(userId);
-      if (state && state.tool && !msg.text.startsWith('/')) {
-        return; // Let the modular handler (aiHandler, etc) handle this text
+      if (state && state.tool) {
+        // Only allow through if it's an explicit /cancel or /start command
+        if (!msg.text.startsWith('/cancel') && !msg.text.startsWith('/start')) {
+          return; 
+        }
       }
 
       // Handle Workflow Navigation
