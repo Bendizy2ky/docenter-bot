@@ -15,7 +15,7 @@ module.exports = (bot, shared) => {
     if (!state || state.tool !== 'transcribe_audio') return;
 
     const { getCredits, deductCredits, downloadTelegramFile, deleteProcessingMessage } = shared;
-    const balance = getCredits(userId);
+    const balance = await getCredits(userId);
     const cost = TOOL_COSTS.transcribe_audio;
 
     if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits('transcription', cost, balance));

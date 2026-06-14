@@ -302,11 +302,17 @@ function parseColor(colorString) {
 async function enhanceImage(buffer) {
   try {
     const enhanced = await sharp(buffer)
+      .rotate() // Auto-fix orientation
+      .normalise() // High Dynamic Range (HDR) effect
       .modulate({
-        brightness: 1.05,
-        saturation: 1.1,
+        brightness: 1.02,
+        saturation: 1.25, // More vibrant colors
       })
-      .sharpen({ sigma: 1.5 })
+      .sharpen({ 
+        sigma: 1.2,
+        m1: 0.5,
+        m2: 15 
+      })
       .toBuffer();
     return { success: true, buffer: enhanced };
   } catch (error) {

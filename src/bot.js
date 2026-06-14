@@ -49,7 +49,9 @@ const TOOL_COSTS = {
   cv_enhance:         10,
   ai_image_generator: 5,
   photo_fix:          3,
-  document_photo_pack: 6
+  document_photo_pack: 6,
+  business_photo_pack: 8,
+  create_print_grid:   2
 };
 
 // ─────────────────────────────────────────────
@@ -405,18 +407,6 @@ async function startBot() {
     );
   });
 
-  bot.command('document_photo_pack', (ctx) => {
-    const userId = ctx.from.id.toString();
-    userState.startWorkflow(userId, 'Document Photo Pack', {}, ['remove_background', 'passport_photo', 'create_print_grid']);
-    sendMarkdownSafe(ctx, 
-      `🗂 *Document Photo Pack (3 Steps)*\n\n` +
-      `Step 1: Background Removal\n` +
-      `Step 2: Passport Resizing\n` +
-      `Step 3: A4 Print Grid Generation\n\n` +
-      `📎 Please send your photo to begin.`
-    );
-  });
-
   // ── Tool Command Triggers ──────────────────
   bot.command('compress_pdf', (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'compress_pdf' });
@@ -436,11 +426,6 @@ async function startBot() {
   bot.command('transcribe', (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'transcribe_audio' });
     sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe.'));
-  });
-
-  bot.command('photo_fix', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'photo_fix' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance.'));
   });
 
   // ── Admin Commands ──────────────────────────
@@ -810,15 +795,15 @@ async function startBot() {
       }
 
       // Map common menu commands to the same behavior as bot.command handlers
-      if (cmd === 'compress_image') {
+      if (cmd === 'compress_image' || cmd === 'compressimage') {
         userState.set(userId, { tool: 'compress_image' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG).'));
       }
-      if (cmd === 'remove_background') {
+      if (cmd === 'remove_background' || cmd === 'removebackground') {
         userState.set(userId, { tool: 'remove_background' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG).'));
       }
-      if (cmd === 'passport_photo') {
+      if (cmd === 'passport_photo' || cmd === 'passportphoto') {
         userState.set(userId, { tool: 'passport_photo' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send a *clear, front-facing photo*.\n\n' + menus.passportGuide));
       }
@@ -838,6 +823,36 @@ async function startBot() {
       if (cmd === 'to_webp' || cmd === 'towebp') {
         userState.set(userId, { tool: 'convert_image', target: 'webp' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now.'));
+      }
+      
+      // AI & Professional Tools Re-routing
+      if (cmd === 'generate_image' || cmd === 'generateimage') {
+        userState.set(userId, { tool: 'ai_image_generator' });
+        return sendMarkdownSafe(ctx, "🎨 *AI Image Generator*\n\nDescribe the image you want to create.\n\nCost: 5 credits.");
+      }
+      if (cmd === 'photo_fix' || cmd === 'photofix') {
+        userState.set(userId, { tool: 'photo_fix' });
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance.'));
+      }
+      if (cmd === 'transcribe') {
+        userState.set(userId, { tool: 'transcribe_audio' });
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe.'));
+      }
+      if (cmd === 'summarize') {
+        userState.set(userId, { tool: 'ai_summarize' });
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *document* you want me to summarize.'));
+      }
+      if (cmd === 'cv_enhance' || cmd === 'cvenhance') {
+        userState.set(userId, { tool: 'cv_enhance' });
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Send your *CV (PDF or Word)* for enhancement.'));
+      }
+      if (cmd === 'compress_pdf' || cmd === 'compresspdf') {
+        userState.set(userId, { tool: 'compress_pdf' });
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress.'));
+      }
+      if (cmd === 'pdf_to_word' || cmd === 'pdftoword') {
+        userState.set(userId, { tool: 'pdf_to_word' });
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word.'));
       }
 
       // Re-route top-level menu clicks

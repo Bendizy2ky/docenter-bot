@@ -11,10 +11,10 @@ module.exports = (bot, shared) => {
     sendMarkdownSafe(ctx, `✨ *Complete Photo Fix — 3 credits*\n\nSend me any photo and I will automatically enhance, sharpen and improve the quality.\n\n📸 Send your photo now.`);
   });
 
-  bot.command('document_photo_pack', (ctx) => {
+  bot.command('document_photo_pack', async (ctx) => {
     const userId = ctx.from.id.toString();
     const cost = TOOL_COSTS.document_photo_pack;
-    const balance = shared.getCredits(userId);
+    const balance = await shared.getCredits(userId);
 
     if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits('Document Pack', cost, balance));
 
@@ -67,10 +67,10 @@ module.exports = (bot, shared) => {
     });
   });
 
-  bot.command('business_photo_pack', (ctx) => {
+  bot.command('business_photo_pack', async (ctx) => {
     const userId = ctx.from.id.toString();
     const cost = TOOL_COSTS.business_photo_pack;
-    const balance = shared.getCredits(userId);
+    const balance = await shared.getCredits(userId);
 
     if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits('Business Pack', cost, balance));
 

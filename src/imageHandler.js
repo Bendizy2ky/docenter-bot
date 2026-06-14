@@ -1,4 +1,4 @@
-const { compressImage, removeBackground, makePassportPhoto, convertImage, applyBackground, enhanceImage } = require('./services/image');
+const { compressImage, removeBackground, makePassportPhoto, convertImage, applyBackground, enhanceImage, createPrintGrid } = require('./services/image');
 
 module.exports = (bot, shared) => {
   const { TOOL_COSTS, menus, userState, sendMarkdownSafe } = shared;
@@ -78,9 +78,16 @@ module.exports = (bot, shared) => {
   });
 
   return {
-    canHandle: (tool) => ['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'apply_background', 'basic_enhance', 'photo_fix'].includes(tool),
+    canHandle: (tool) => ['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'apply_background', 'basic_enhance', 'photo_fix', 'create_print_grid'].includes(tool),
     process: async (ctx, tool, fileBuffer, fileName, mimeType, state, extendedShared) => {
       const { safelySendFile, balance, cost } = extendedShared;
+
+      if (tool === 'create_print_grid') {
+        const res = await createPrintGrid(fileBuffer);
+        if (!res.success) throw new Error('Grid creation failed');
+        const sent = await safelySendFile(ctx, res.buffer, `print_sheet_${fileName}`, `✅ *Print Grid Ready!*`);
+        return { sent, buffer: res.buffer };
+      }
 
       if (tool === 'compress_image') {
         const res = await compressImage(fileBuffer, mimeType || 'image/jpeg');
