@@ -42,21 +42,27 @@ module.exports = (bot, shared) => {
       // Use Pollinations AI for image generation
       // We add a random seed to ensure unique results for similar prompts
       const seed = Math.floor(Math.random() * 1000000);
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}&model=turbo`;
       
-      const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 45000 });
+      const response = await axios.get(imageUrl, { 
+        responseType: 'arraybuffer', 
+        timeout: 90000, // Increased timeout to 90s for slow AI generation
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        }
+      });
       const buffer = Buffer.from(response.data);
 
       const caption = `✅ *Image Generated!*\n\nPrompt: _${prompt}_\n\n💳 Credits remaining: *${balance - cost}*`;
       const sent = await safelySendFile(ctx, buffer, 'generated_image.jpg', caption);
 
       if (sent) await deductCredits(userId, cost);
-      userState.delete(userId);
     } catch (error) {
       console.error('Pollinations AI error:', error.message);
-      ctx.reply('⚠️ Failed to generate image. Please try a different description or try again later.');
+      await sendMarkdownSafe(ctx, '⚠️ Failed to generate image. Please try a different description or try again later.');
     } finally {
       await deleteProcessingMessage(ctx, msg.message_id);
+      userState.delete(userId);
     }
   });
 
