@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────
 
 const axios = require('axios');
+const crypto = require('crypto');
 
 // Credit pack definitions
 // Each pack has a name, price in Naira, and credits given
@@ -93,6 +94,20 @@ async function generatePaymentLink(telegramId, packKey) {
     console.error('Paystack error:', error.response?.data || error.message);
     return { success: false, error: 'Failed to generate payment link.' };
   }
+}
+
+/**
+ * verifyWebhookSignature
+ * Verifies that the request actually came from Paystack.
+ */
+function verifyWebhookSignature(body, signature) {
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret) return false;
+  
+  const hash = crypto.createHmac('sha512', secret)
+                     .update(JSON.stringify(body))
+                     .digest('hex');
+  return hash === signature;
 }
 
 /**

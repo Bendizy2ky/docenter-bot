@@ -18,7 +18,8 @@ I can help you process documents and images instantly. Pay in Naira. No account 
 📄 PDF Tools — /pdf
 🖼 Image Tools — /image
 🔊 Audio Tools — /audio
-💳 Buy Credits — /credits
+📦 Photo Packs — /packs
+� Buy Credits — /credits
 ❓ Help — /help
 `,
 
@@ -44,11 +45,21 @@ Choose a tool:
 
 1️⃣ /compress_image — Shrink image file size (1 credit)
 2️⃣ /remove_background — Remove image background (2 credits)
-3️⃣ /passport_photo — Make a passport photo (3 credits)
-4️⃣ /convert_image — Convert image formats (jpg ↔ png, webp) (1 credit)
+3️⃣ /apply_background — Replace with white/red/blue background (3 credits)
+4️⃣ /passport_photo — Make a passport photo (3 credits)
+5️⃣ /convert_image — Convert image formats (jpg ↔ png, webp) (1 credit)
+6️⃣ /generate_image — Create image from text prompt (5 credits)
 
 💡 Each tool costs credits.
 Type /credits to buy credits.
+`,
+
+  packsMenu: `
+📦 *Photo Packs*
+Get more done with a single automated process.
+
+✨ /photo_fix — Auto-enhance any photo (3 credits)
+📋 /document_photo_pack — Passport ready + Print Sheet (6 credits)
 `,
 
     // Sent when user types /audio
@@ -83,6 +94,7 @@ Credits never expire. Pay once, use anytime.
 • PDF to Word — 2 Credits
 • Remove Background — 2 Credits
 • Passport Photo — 3 Credits
+• AI Image Generation — 5 Credits
 • Transcription (audio) — 5 Credits
 `,
 
@@ -137,6 +149,31 @@ Please try again. If the problem continues, message @Anene1 for help.
 
   // Sent when we are waiting for the user to upload a file
   awaitingFile: (instruction) => `📎 ${instruction}`,
+
+  passportGuide: `📸 For best results:
+• Position your face in the CENTER of the photo
+• Leave space above your head
+• Use a plain background`,
+
+  // Workflow specific UI
+  workflowCancelled: `❌ *Workflow cancelled.* Your session has been cleared.\n\nType /start to see the main menu.`,
+
+  workflowNextStepPrompt: (nextStepName, cost) => `
+✨ *Step complete!*
+
+Would you like to proceed to the next step: *${nextStepName}*?
+Cost: ${cost} credits.
+
+Click /continue to proceed with the current file, or /finish to end this session.
+`,
+
+  workflowComplete: (name) => `
+🎉 *Workflow Complete!*
+
+The *${name}* process is finished. All processed files have been delivered.
+
+Type /start for more tools.
+`,
 
 };
 

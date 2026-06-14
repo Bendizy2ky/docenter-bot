@@ -287,9 +287,55 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
   }
 }
 
+/**
+ * docxToPdf
+ * Converts a .docx Word buffer to a PDF buffer using local LibreOffice.
+ */
+async function docxToPdf(fileBuffer, fileName = 'document.docx') {
+  try {
+    if (!isSofficeAvailable()) {
+      return { success: false, error: 'LibreOffice is not installed on the server to handle Word conversions.' };
+    }
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'word2pdf-'));
+    const inputPath = path.join(tmpDir, fileName.replace(/[^a-z0-9\.\-_]/gi, '_'));
+    fs.writeFileSync(inputPath, fileBuffer);
+
+    const prog = process.platform === 'win32' ? 'soffice.exe' : 'soffice';
+    const res = spawnSync(prog, ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, inputPath], { timeout: 120000 });
+
+    if (res.status !== 0) {
+      cleanupTmp(tmpDir);
+      return { success: false, error: 'Conversion process failed.' };
+    }
+
+    const baseName = path.basename(inputPath).replace(/\.docx$/i, '');
+    const outPath = path.join(tmpDir, `${baseName}.pdf`);
+    
+    if (!fs.existsSync(outPath)) {
+      const files = fs.readdirSync(tmpDir).filter(f => f.toLowerCase().endsWith('.pdf'));
+      if (files.length === 0) {
+        cleanupTmp(tmpDir);
+        return { success: false, error: 'Resulting PDF not found.' };
+      }
+      const buf = fs.readFileSync(path.join(tmpDir, files[0]));
+      cleanupTmp(tmpDir);
+      return { success: true, buffer: buf };
+    }
+
+    const buf = fs.readFileSync(outPath);
+    cleanupTmp(tmpDir);
+    return { success: true, buffer: buf };
+  } catch (error) {
+    console.error('Word to PDF error:', error.message);
+    return { success: false, error: 'Failed to convert Word to PDF.' };
+  }
+}
+
 module.exports = {
   compressPdf,
   pdfToWord,
+  docxToPdf
 };
 
 /**

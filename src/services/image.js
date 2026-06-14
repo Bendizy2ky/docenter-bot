@@ -223,11 +223,157 @@ async function convertImage(fileBuffer, targetFormat) {
   }
 }
 
+/**
+ * applyBackground
+ * ───────────────
+ * Takes a PNG buffer with a transparent background and composites it
+ * onto a solid color background. Returns a JPEG buffer.
+ *
+ * @param {Buffer} transparentPngBuffer - PNG image with transparency
+ * @param {string} color                - 'white', 'red', 'blue', 'grey', or a hex code like '#FF0000'
+ * @returns {object}                    - { success, buffer, color } on success, { success: false, error } on failure
+ */
+async function applyBackground(transparentPngBuffer, color) {
+  try {
+    // 1. Parse the color string into RGB values
+    const parsedColor = parseColor(color);
+    if (!parsedColor) {
+      return { success: false, error: 'Invalid background color specified.' };
+    }
+
+    // 2. Get dimensions of the input transparent PNG
+    const metadata = await sharp(transparentPngBuffer).metadata();
+    const { width, height } = metadata;
+
+    if (!width || !height) {
+      return { success: false, error: 'Could not determine image dimensions.' };
+    }
+
+    // 3. Create a solid color background layer using Sharp
+    const backgroundBuffer = await sharp({
+      create: {
+        width: width,
+        height: height,
+        channels: 3, // RGB
+        background: parsedColor,
+      },
+    }).toBuffer();
+
+    // 4. Composite the transparent PNG on top of the color layer
+    const finalBuffer = await sharp(backgroundBuffer)
+      .composite([{ input: transparentPngBuffer, blend: 'over' }])
+      .jpeg({ quality: 95 }) // 5. Return a JPEG buffer at 95% quality
+      .toBuffer();
+
+    return {
+      success: true,
+      buffer: finalBuffer,
+      color: color,
+      outputMimeType: 'image/jpeg',
+    };
+  } catch (error) {
+    console.error('applyBackground error:', error.message);
+    return { success: false, error: 'Failed to apply background color.' };
+  }
+}
+
+// Helper function to parse color strings
+function parseColor(colorString) {
+  const colors = {
+    'white': { r: 255, g: 255, b: 255 },
+    'red':   { r: 220, g: 20,  b: 20  }, // Crimson
+    'blue':  { r: 0,   g: 86,  b: 179 }, // Medium Blue
+    'grey':  { r: 240, g: 240, b: 240 }, // Light Grey
+    'black': { r: 15,  g: 15,  b: 15  }, // Sleek Black
+  };
+  if (colors[colorString]) return colors[colorString];
+  if (colorString.startsWith('#') && colorString.length === 7) {
+    return { r: parseInt(colorString.slice(1, 3), 16), g: parseInt(colorString.slice(3, 5), 16), b: parseInt(colorString.slice(5, 7), 16) };
+  }
+  return colors['white']; // Default to white
+}
+
+/**
+ * enhanceImage
+ * ────────────
+ * Automatically improves image quality by adjusting contrast,
+ * saturation, and sharpness.
+ */
+async function enhanceImage(buffer) {
+  try {
+    const enhanced = await sharp(buffer)
+      .modulate({
+        brightness: 1.05,
+        saturation: 1.1,
+      })
+      .sharpen({ sigma: 1.5 })
+      .toBuffer();
+    return { success: true, buffer: enhanced };
+  } catch (error) {
+    console.error('Enhance image error:', error.message);
+    return { success: false, error: 'Failed to enhance image.' };
+  }
+}
+
+/**
+ * createPrintGrid
+ * ───────────────
+ * Creates an A4 (300 DPI) sheet with 6 copies of the passport photo.
+ */
+async function createPrintGrid(passportBuffer) {
+  try {
+    // A4 at 300 DPI: 2480 x 3508 pixels
+    const width = 2480;
+    const height = 3508;
+
+    const canvas = sharp({
+      create: {
+        width: width,
+        height: height,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 }
+      }
+    });
+
+    // Arrange 6 photos in a 2x3 grid
+    const passportMeta = await sharp(passportBuffer).metadata();
+    const pW = passportMeta.width;
+    const pH = passportMeta.height;
+
+    const composites = [];
+    const startX = 400;
+    const startY = 400;
+    const gap = 150;
+
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 2; col++) {
+        composites.push({
+          input: passportBuffer,
+          top: startY + (row * (pH + gap)),
+          left: startX + (col * (pW + gap))
+        });
+      }
+    }
+
+    const gridBuffer = await canvas
+      .composite(composites)
+      .jpeg({ quality: 95 })
+      .toBuffer();
+
+    return { success: true, buffer: gridBuffer };
+  } catch (error) {
+    console.error('Grid creation error:', error.message);
+    return { success: false, error: 'Failed to create print sheet.' };
+  }
+}
+
 module.exports = {
   compressImage,
   removeBackground,
   makePassportPhoto,
   convertImage,
   PASSPORT_SIZES,
+  applyBackground,
+  enhanceImage,
+  createPrintGrid
 };
-
