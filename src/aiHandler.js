@@ -29,6 +29,8 @@ module.exports = (bot, shared) => {
       return next();
     }
 
+    console.log(`[AI Handler] Processing prompt for ${userId}: "${ctx.message.text.substring(0, 20)}..."`);
+
     const prompt = ctx.message.text.trim().substring(0, 500); // Sanitize and limit length
     const { getCredits, deductCredits, deleteProcessingMessage, safelySendFile } = shared;
     const cost = TOOL_COSTS.ai_image_generator;
