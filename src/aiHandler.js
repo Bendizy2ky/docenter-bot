@@ -41,32 +41,54 @@ module.exports = (bot, shared) => {
     const msg = await sendMarkdownSafe(ctx, menus.processing('image generation'));
 
     try {
-      // Use Pollinations AI for image generation
-      // We add a random seed to ensure unique results for similar prompts
-      const seed = Math.floor(Math.random() * 1000000);
-      const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
-      
-      const response = await axios.get(imageUrl, { 
-        responseType: 'arraybuffer', 
-        timeout: 90000, // Increased timeout to 90s for slow AI generation
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+      let buffer = null;
+      let lastError = null;
+      const maxRetries = 2;
+
+      // Implementation of a retry loop to handle intermittent upstream failures
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const seed = Math.floor(Math.random() * 1000000);
+          // Using the specialized 'image' subdomain for direct binary output
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=turbo`;
+          
+          const response = await axios.get(imageUrl, { 
+            responseType: 'arraybuffer', 
+            timeout: 60000, // 60s per individual attempt
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+              'Cache-Control': 'no-cache'
+            }
+          });
+
+          const contentType = response.headers['content-type'] || '';
+          // Defensive check against HTML error pages served with 200 status
+          if (!contentType.startsWith('image/')) {
+            throw new Error(`Upstream returned ${contentType} instead of image data.`);
+          }
+
+          if (response.data.length < 5000) {
+            throw new Error('Payload too small to be a valid image.');
+          }
+
+          buffer = Buffer.from(response.data);
+          break; // Exit loop on success
+        } catch (err) {
+          lastError = err;
+          const status = err.response?.status;
+          console.warn(`[AI Handler] Attempt ${attempt} failed (Status: ${status || 'Timeout'}): ${err.message}`);
+          
+          if (attempt < maxRetries) {
+            // Linear backoff: wait 2s, then 4s...
+            await new Promise(r => setTimeout(r, 2000 * attempt));
+          }
         }
-      });
-
-      // Validation: Ensure the response is actually an image
-      const contentType = response.headers['content-type'] || '';
-      if (!contentType.startsWith('image/')) {
-        console.error(`AI Generation failed: Received ${contentType} instead of image. Content length: ${response.data.length}`);
-        throw new Error('Upstream service returned a non-image response.');
       }
 
-      if (response.data.length < 5000) { // Images are rarely this small
-        throw new Error('Received an empty or invalid image buffer.');
+      if (!buffer) {
+        throw lastError || new Error('Image generation exhausted all retry attempts.');
       }
-
-      const buffer = Buffer.from(response.data);
 
       const caption = `✅ *Image Generated!*\n\nPrompt: _${prompt}_\n\n💳 Credits remaining: *${balance - cost}*`;
       const sent = await safelySendFile(ctx, buffer, 'generated_image.jpg', caption);
