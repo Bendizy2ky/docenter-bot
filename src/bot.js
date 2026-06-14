@@ -228,7 +228,7 @@ async function deleteProcessingMessage(ctx, messageId) {
 // Main Bot
 // ─────────────────────────────────────────────
 
-function startBot() {
+async function startBot() {
   if (!process.env.TELEGRAM_BOT_TOKEN) {
     throw new Error('TELEGRAM_BOT_TOKEN is not set in environment. Please add it to your .env file.');
   }
@@ -776,7 +776,7 @@ function startBot() {
     }
   }
 
-  bot.on('text', (ctx) => {
+  bot.on('text', async (ctx) => {
     try {
       const msg = ctx.message || {};
       let token = '';
