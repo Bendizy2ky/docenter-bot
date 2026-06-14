@@ -6,7 +6,8 @@ const path = require('path');
 const axios = require('axios');
 const { transcribeAudio } = require('./transcription');
 
-const QUEUE_DIR = path.join(__dirname, '..', 'data', 'transcribe_queue');
+const DATA_DIR = path.join(__dirname, '..', '..', 'data');
+const QUEUE_DIR = path.join(DATA_DIR, 'transcribe_queue');
 if (!fs.existsSync(QUEUE_DIR)) fs.mkdirSync(QUEUE_DIR, { recursive: true });
 
 function makeId() {

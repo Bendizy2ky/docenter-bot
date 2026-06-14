@@ -1,5 +1,5 @@
-const { transcribeAudio } = require('../services/transcription');
-const { enqueue } = require('../services/transcribe_queue');
+const { transcribeAudio } = require('./services/transcription');
+const { enqueue } = require('./services/transcribe_queue');
 
 module.exports = (bot, shared) => {
   const { TOOL_COSTS, menus, userState, sendMarkdownSafe } = shared;

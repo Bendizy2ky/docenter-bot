@@ -1,4 +1,4 @@
-const { getReferralCode, getReferralStats } = require('../credits');
+const { getReferralCode, getReferralStats } = require('./credits');
 
 module.exports = (bot, shared) => {
   const { sendMarkdownSafe } = shared;

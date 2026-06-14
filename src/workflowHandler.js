@@ -1,4 +1,4 @@
-const { enhanceImage, removeBackground, applyBackground, makePassportPhoto, createPrintGrid } = require('../services/image');
+const { enhanceImage, removeBackground, applyBackground, makePassportPhoto, createPrintGrid } = require('./services/image');
 const sharp = require('sharp');
 
 module.exports = (bot, shared) => {
