@@ -8,7 +8,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const FILE = path.join(__dirname, '..', 'credits.json');
+const DATA_DIR = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const FILE = path.join(DATA_DIR, 'credits.json');
 
 // Simple async queue to prevent concurrent write issues (Race Conditions)
 let writeQueue = Promise.resolve();
