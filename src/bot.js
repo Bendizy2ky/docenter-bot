@@ -684,12 +684,12 @@ async function startBot() {
   };
 
   const handlers = [
-    require('./handlers/pdfHandler')(bot, shared),
-    require('./handlers/imageHandler')(bot, shared),
-    require('./handlers/audioHandler')(bot, shared),
-    require('./handlers/aiHandler')(bot, shared),
-    require('./handlers/referralHandler')(bot, shared),
-    require('./handlers/workflowHandler')(bot, shared)
+    require('./pdfHandler')(bot, shared),
+    require('./imageHandler')(bot, shared),
+    require('./audioHandler')(bot, shared),
+    require('./aiHandler')(bot, shared),
+    require('./referralHandler')(bot, shared),
+    require('./workflowHandler')(bot, shared)
   ];
 
   bot.on(['document', 'photo'], async (ctx) => {
