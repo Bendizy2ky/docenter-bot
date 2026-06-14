@@ -25,11 +25,11 @@ module.exports = (bot, shared) => {
     const userId = ctx.from.id.toString();
     const state = userState.get(userId);
 
-    if (!state || state.tool !== 'ai_image_generator' || ctx.message.text.startsWith('/')) {
+    if (!state || state.tool !== 'ai_image_generator' || !ctx.message.text || ctx.message.text.startsWith('/')) {
       return next();
     }
 
-    const prompt = ctx.message.text;
+    const prompt = ctx.message.text.trim().substring(0, 500); // Sanitize and limit length
     const { getCredits, deductCredits, deleteProcessingMessage, safelySendFile } = shared;
     const cost = TOOL_COSTS.ai_image_generator;
     const balance = await getCredits(userId);
@@ -42,15 +42,28 @@ module.exports = (bot, shared) => {
       // Use Pollinations AI for image generation
       // We add a random seed to ensure unique results for similar prompts
       const seed = Math.floor(Math.random() * 1000000);
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}&model=turbo`;
+      const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
       
       const response = await axios.get(imageUrl, { 
         responseType: 'arraybuffer', 
         timeout: 90000, // Increased timeout to 90s for slow AI generation
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
         }
       });
+
+      // Validation: Ensure the response is actually an image
+      const contentType = response.headers['content-type'] || '';
+      if (!contentType.startsWith('image/')) {
+        console.error(`AI Generation failed: Received ${contentType} instead of image. Content length: ${response.data.length}`);
+        throw new Error('Upstream service returned a non-image response.');
+      }
+
+      if (response.data.length < 5000) { // Images are rarely this small
+        throw new Error('Received an empty or invalid image buffer.');
+      }
+
       const buffer = Buffer.from(response.data);
 
       const caption = `✅ *Image Generated!*\n\nPrompt: _${prompt}_\n\n💳 Credits remaining: *${balance - cost}*`;
