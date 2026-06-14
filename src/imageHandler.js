@@ -1,4 +1,4 @@
-const { compressImage, removeBackground, makePassportPhoto, convertImage, applyBackground, enhanceImage, hdEnhance } = require('./services/image');
+const { compressImage, removeBackground, makePassportPhoto, convertImage, applyBackground, enhanceImage } = require('./services/image');
 
 module.exports = (bot, shared) => {
   const { TOOL_COSTS, menus, userState, sendMarkdownSafe } = shared;
@@ -68,24 +68,17 @@ module.exports = (bot, shared) => {
   bot.command('enhance', (ctx) => {
     sendMarkdownSafe(ctx, 
       `✨ *Image Enhancement*\n\n` +
-      `Choose enhancement type:\n` +
-      `• /basic_enhance — Sharpen & Color fix (Local Sharp)\n` +
-      `• /hd_enhance — Ultra HD 2x Upscale (High Quality Sharp)`
+      `Tap /photo_fix to sharpen and improve the color quality of your photo.`
     );
   });
 
   bot.command('basic_enhance', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'basic_enhance' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send your *image* for basic enhancement.`));
-  });
-
-  bot.command('hd_enhance', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'hd_enhance' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send your *image* for HD enhancement.`));
+    userState.set(ctx.from.id.toString(), { tool: 'photo_fix' });
+    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send your *photo* for auto-enhancement.`));
   });
 
   return {
-    canHandle: (tool) => ['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'apply_background', 'basic_enhance', 'hd_enhance'].includes(tool),
+    canHandle: (tool) => ['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'apply_background', 'basic_enhance', 'photo_fix'].includes(tool),
     process: async (ctx, tool, fileBuffer, fileName, mimeType, state, extendedShared) => {
       const { safelySendFile, balance, cost } = extendedShared;
 
@@ -138,17 +131,10 @@ module.exports = (bot, shared) => {
         return { sent, buffer: finalImageResult.buffer };
       }
 
-      if (tool === 'basic_enhance') {
+      if (tool === 'basic_enhance' || tool === 'photo_fix') {
         const res = await enhanceImage(fileBuffer);
         if (!res.success) throw new Error('Basic enhancement failed');
         const sent = await safelySendFile(ctx, res.buffer, `enhanced_${fileName}`, `✅ *Basic Enhancement Complete!*`);
-        return { sent, buffer: res.buffer };
-      }
-
-      if (tool === 'hd_enhance') {
-        const res = await hdEnhance(fileBuffer);
-        if (!res.success) throw new Error(res.error || 'HD enhancement failed');
-        const sent = await safelySendFile(ctx, res.buffer, `hd_enhanced_${fileName}`, `✅ *HD Enhancement Complete!*`);
         return { sent, buffer: res.buffer };
       }
     }

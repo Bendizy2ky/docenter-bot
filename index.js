@@ -13,7 +13,10 @@ try {
 	try { startServer(); } catch (e) { console.error('Failed to start server:', e && e.message); }
 
 	// Start the bot
-	startBot();
+	startBot().catch(err => {
+		console.error('CRITICAL: Bot startup failed:', err);
+		process.exit(1);
+	});
 } catch (err) {
 	console.error('Failed to start DocCenter bot:');
 	console.error(err && err.stack ? err.stack : err);
