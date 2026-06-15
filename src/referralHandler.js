@@ -1,14 +1,16 @@
 const { getReferralCode, getReferralStats } = require('./credits');
+const { getNextMilestone } = require('./utils/referralUtils');
 
 module.exports = (bot, shared) => {
   const { sendMarkdownSafe } = shared;
-  const BOT_USERNAME = process.env.BOT_USERNAME || 'DocCenterBot';
+  const BOT_USERNAME = process.env.BOT_USERNAME || 'DOCENTERb_bot';
 
-  bot.command('refer', (ctx) => {
+  bot.command('refer', async (ctx) => {
     const userId = ctx.from.id.toString();
-    const code = getReferralCode(userId);
-    const stats = getReferralStats(userId);
+    const code = await getReferralCode(userId);
+    const stats = await getReferralStats(userId);
     const link = `https://t.me/${BOT_USERNAME}?start=${code}`;
+    const nextMilestone = getNextMilestone(stats.referralCount);
 
     const message = `
 🎁 *Refer Friends, Earn Credits!*
@@ -16,33 +18,43 @@ module.exports = (bot, shared) => {
 Your referral link:
 \`${link}\`
 
-👆 Share this link with friends and family.
-
 *How it works:*
-• Friend clicks your link and opens the bot
-• They get 3 BONUS credits when they first use a tool
-• You earn 3 credits per successful referral
-• Monthly limit: 15 referral credits (5 referrals)
+- Friend clicks your link and opens the bot
+- They get 5 BONUS credits on their first tool use
+  (on top of their 10 free starter credits = 15 total!)
+- You earn 3 credits per successful referral
+- Monthly limit: 30 credits (10 referrals/month)
+
+*Milestone Bonuses:*
+🥉 5 referrals  → +10 bonus credits (free Try Pack!)
+🥈 10 referrals → +25 bonus credits (free Regular Pack!)
+🥇 25 referrals → +60 bonus credits (free Smart Pack!)
+👑 50 referrals → +180 bonus credits (free Boss Pack!)
 
 *Your referral stats:*
-👥 Total referrals: ${stats.referralCount}
-💰 Credits earned: ${stats.creditsEarned}
-📅 This month: ${stats.thisMonth}/15 credits
+👥 Total referrals: [${stats.referralCount}]
+💰 Total credits earned: [${stats.creditsEarned}]
+📅 This month: ${stats.thisMonth}/30 credits
+🏆 Next milestone: ${nextMilestone}
 
-*Share this message:*
-─────────────────
-🤖 I use DocCenter Bot on Telegram for:
-✅ Compressing PDFs
-✅ Removing image backgrounds  
-✅ Making passport photos
-✅ Transcribing audio to text
-✅ AI document summaries
+*Copy and share this:*
+─────────────────────────────
+🤖 I use *DocCenter Bot* on Telegram!
 
-All in Naira — no dollar payment!
+It does things ChatGPT cannot do:
+✅ Passport-ready photos in 60 seconds
+✅ PDF compression and Word conversion
+✅ Remove and replace image backgrounds
+✅ Audio to text transcription
+✅ AI CV enhancement — only 3 credits!
+✅ AI document summaries — only 1 credit!
 
-Join with my link and get 3 FREE bonus credits:
+Everything paid in *Naira*. No dollar payment.
+New users get *10 FREE credits* to start.
+Join with my link — get *5 BONUS credits*:
+
 ${link}
-─────────────────
+─────────────────────────────
 `;
 
     sendMarkdownSafe(ctx, message);

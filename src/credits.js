@@ -63,13 +63,14 @@ async function _ensureUserObject(all, id) {
   // If new user
   if (!all[id]) {
     all[id] = {
-      credits: 5,
+      credits: 10, // Default starter credits
       referralCode: generateReferralCode(id, all),
       referredBy: null,
       referralCount: 0,
       referralCreditsEarned: 0,
       referralCreditsThisMonth: 0,
       referralMonthKey: currentMonth,
+      milestonesEarned: [],
       firstToolUsed: false,
       joinedAt: new Date().toISOString()
     };
@@ -87,6 +88,7 @@ async function _ensureUserObject(all, id) {
       referralCreditsEarned: 0,
       referralCreditsThisMonth: 0,
       referralMonthKey: currentMonth,
+      milestonesEarned: [],
       firstToolUsed: false,
       joinedAt: new Date().toISOString()
     };
@@ -183,11 +185,14 @@ async function registerReferral(newUserId, referralCode) {
   const id = String(newUserId);
   
   const referrerId = findUserByReferralCode(referralCode);
-  if (!referrerId) return { success: false, reason: 'Invalid referral code.' };
-  if (referrerId === id) return { success: false, reason: 'You cannot refer yourself.' };
+  if (!referrerId) return { success: false, reason: 'Invalid' };
+  if (referrerId === id) return { success: false, reason: 'Self' };
   
   await _ensureUserObject(all, id);
-  if (all[id].referredBy) return { success: false, reason: 'Already referred.' };
+  if (all[id].referredBy) return { success: false, reason: 'Re-referred' };
+
+  // Rule 7: Referrer must have used at least one tool
+  if (!all[referrerId].firstToolUsed) return { success: false, reason: 'Inactive Referrer' };
   
   all[id].referredBy = referrerId;
   await saveCredits(all);
@@ -205,11 +210,13 @@ async function completeReferral(userId) {
   const user = all[id];
   if (user.firstToolUsed) return { newUserBonus: 0, referrerRewarded: false };
   
-  // Mark first use
-  user.firstToolUsed = true;
   let newUserBonus = 0;
   let referrerRewarded = false;
   let referrerId = user.referredBy;
+  let milestoneMsg = null;
+
+  // Mark first use
+  user.firstToolUsed = true;
 
   if (referrerId) {
     await _ensureUserObject(all, referrerId);
@@ -226,8 +233,8 @@ async function completeReferral(userId) {
     
     // Give new user bonus
     if (referrerId) {
-      user.credits += 3;
-      newUserBonus = 3;
+      user.credits += 5;
+      newUserBonus = 5;
 
       // Handle Referrer reward with Monthly Cap
       if (referrer.referralMonthKey !== currentMonth) {
@@ -235,7 +242,7 @@ async function completeReferral(userId) {
         referrer.referralMonthKey = currentMonth;
       }
 
-      if (referrer.referralCreditsThisMonth < 15) {
+      if (referrer.referralCreditsThisMonth < 30) {
         referrer.credits += 3;
         referrer.referralCreditsEarned += 3;
         referrer.referralCreditsThisMonth += 3;
@@ -243,6 +250,9 @@ async function completeReferral(userId) {
       }
       
       referrer.referralCount += 1;
+
+      // Check Milestones
+      milestoneMsg = await checkReferralMilestones(referrerId, all);
     }
   }
 
@@ -252,8 +262,41 @@ async function completeReferral(userId) {
     referrerRewarded, 
     referrerId,
     newBalance: user.credits,
-    referrerTotalEarned: referrerId ? all[referrerId].referralCreditsEarned : 0
+    referrerTotalEarned: referrerId ? all[referrerId].referralCreditsEarned : 0,
+    referrerThisMonth: referrerId ? all[referrerId].referralCreditsThisMonth : 0,
+    referrerBalance: referrerId ? all[referrerId].credits : 0,
+    milestoneMsg
   };
+}
+
+/**
+ * Internal milestone checker
+ */
+async function checkReferralMilestones(userId, all) {
+  const u = all[userId];
+  const count = u.referralCount;
+  const earned = u.milestonesEarned || [];
+
+  const milestones = [
+    { threshold: 5, bonus: 10, name: 'Try Pack' },
+    { threshold: 10, bonus: 25, name: 'Regular Pack' },
+    { threshold: 25, bonus: 60, name: 'Smart Pack' },
+    { threshold: 50, bonus: 180, name: 'Boss Pack' }
+  ];
+
+  for (const m of milestones) {
+    if (count >= m.threshold && !earned.includes(m.threshold)) {
+      u.credits += m.bonus;
+      u.milestonesEarned = [...earned, m.threshold];
+      return {
+        threshold: m.threshold,
+        bonus: m.bonus,
+        packName: m.name,
+        newBalance: u.credits
+      };
+    }
+  }
+  return null;
 }
 
 /**
@@ -274,7 +317,7 @@ async function getReferralStats(userId) {
     referralCount: u.referralCount,
     creditsEarned: u.referralCreditsEarned,
     thisMonth: thisMonth,
-    monthlyCapRemaining: 15 - thisMonth
+    monthlyCapRemaining: 30 - thisMonth
   };
 }
 

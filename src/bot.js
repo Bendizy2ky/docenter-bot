@@ -76,7 +76,11 @@ const BOT_USERNAME = process.env.BOT_USERNAME || 'DocCenterBot';
 function escapeMarkdown(text) {
   // For Markdown v1, escaping underscores and brackets is essential.
   // Clickable commands like /tool_name still work correctly when underscores are escaped.
-  return String(text).replace(/([_\[\]])/g, '\\$1');
+  return String(text).replace(/([_\[\]\(\)\*])/g, (match, p1) => {
+    // Only escape if it's not part of a markdown-like structure we want to keep
+    // This is a simplified safe-guard.
+    return '\\' + p1;
+  });
 }
 
 // Safely send Markdown text
@@ -189,12 +193,18 @@ async function safelySendFile(ctx, buffer, filename, caption) {
  * notifyReferrer
  * Sends a message to the person who referred the current user.
  */
-async function notifyReferrer(referrerId, totalEarned) {
+async function notifyReferrer(referrerId, data) {
   try {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    let text = `🎉 *Referral Success!*\n\nSomeone just used DocCenter for the first time through your referral link!\n\n*+3 credits* added to your account.\nTotal from referrals: *${data.totalEarned}* credits\nThis month: *${data.thisMonth}/30* credits\n\nKeep sharing: /refer`;
+
+    if (data.milestone) {
+      text += `\n\n🏆 *Amazing! You reached ${data.milestone.threshold} referrals!*\n\n+${data.milestone.bonus} bonus credits added.\nThat is a free ${data.milestone.packName} worth of credits!\n\nYour balance: *${data.milestone.newBalance}* credits`;
+    }
+
     await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       chat_id: referrerId,
-      text: `💰 *Referral Reward!*\n\nSomeone you invited just used their first tool. You've earned *3 credits*!\n\nTotal earned: *${totalEarned}* credits.`,
+      text: text,
       parse_mode: 'Markdown'
     });
   } catch (e) {
@@ -323,22 +333,24 @@ async function startBot() {
     const userId = ctx.from.id.toString();
     userState.delete(userId);
 
-    let referralLine = "";
     const payload = ctx.startPayload;
     if (payload && payload.startsWith('DOC-')) {
       const reg = await registerReferral(userId, payload);
       if (reg.success) {
-        referralLine = "\n\n🎁 *You joined through a referral!* Use any tool to claim your 3 BONUS credits.";
+        return sendMarkdownSafe(ctx, menus.referralWelcome + `\n\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
       }
     }
 
+    return sendMarkdownSafe(ctx, menus.normalWelcome + `\n\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
+    /* Old code removed for brevity
     // Show admin-only commands in the welcome message when applicable
     let welcomeText = menus.welcome;
     const adminId = process.env.ADMIN_TELEGRAM_ID;
     if (adminId && ctx.from.id.toString() === adminId.toString()) {
       welcomeText += '\n\n⚙️ Admin: /diagnose — Run network diagnostics';
     }
-    sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
+sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n🎁 *Earn Free Credits:* Invite friends with /refer\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
+    */
   });
 
   // ── /cancel ─────────────────────────────────
@@ -498,10 +510,14 @@ async function startBot() {
         // Check Referral Completion
         const refRes = await completeReferral(userId);
         if (refRes.newUserBonus > 0) {
-          await sendMarkdownSafe(ctx, `🎁 *Bonus!* You earned 3 referral credits for joining through a friend's link!\n\nYour updated balance: *${refRes.newBalance}* credits`);
+          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* have been added!\n\nYour updated balance: *${refRes.newBalance}* credits\n\nEnjoy DocCenter! 😊`);
         }
         if (refRes.referrerRewarded) {
-          await notifyReferrer(refRes.referrerId, refRes.referrerTotalEarned);
+          await notifyReferrer(refRes.referrerId, {
+            totalEarned: refRes.referrerTotalEarned,
+            thisMonth: refRes.referrerThisMonth,
+            milestone: refRes.milestoneMsg
+          });
         }
 
         await handleWorkflowProgression(ctx, userId, state, result.buffer, finalBalance);
@@ -816,10 +832,14 @@ async function startBot() {
         // Check Referral Completion
         const refRes = await completeReferral(userId);
         if (refRes.newUserBonus > 0) {
-          await sendMarkdownSafe(ctx, `🎁 *Bonus!* You earned 3 referral credits for joining through a friend's link!\n\nYour updated balance: *${refRes.newBalance}* credits`);
+          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* have been added!\n\nYour updated balance: *${refRes.newBalance}* credits\n\nEnjoy DocCenter! 😊`);
         }
         if (refRes.referrerRewarded) {
-          await notifyReferrer(refRes.referrerId, refRes.referrerTotalEarned);
+          await notifyReferrer(refRes.referrerId, {
+            totalEarned: refRes.referrerTotalEarned,
+            thisMonth: refRes.referrerThisMonth,
+            milestone: refRes.milestoneMsg
+          });
         }
 
         if (!state.isWorkflow) {

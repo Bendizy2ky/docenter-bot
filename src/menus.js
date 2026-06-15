@@ -19,6 +19,7 @@ Transform your workflow with instant, high-performance tools designed for excell
 • ✅ **Frictionless:** Pay in ₦ — No account required.
 
 *Select a category to begin:*
+🎁 **Refer & Earn** — /refer
 🤖 **AI Features** — /ai
 📄 **Document Suite** — /pdf
 🖼 **Image Studio** — /image
@@ -26,6 +27,47 @@ Transform your workflow with instant, high-performance tools designed for excell
 📦 **Premium Packs** — /packs
 💳 **Get Credits** — /credits
 ❓ **Support** — /help
+`,
+
+  referralWelcome: `
+🎊 *Welcome to DocCenter!*
+
+You joined through a friend's referral!
+
+*Your starting credits:*
+✅ Free starter credits: 10
+✅ Referral bonus waiting: +5
+━━━━━━━━━━━━━━━━━━
+🎁 Use any tool to claim your bonus!
+Total available: *15 credits*
+
+*Try these popular tools:*
+/document_photo_pack — 5 credits
+/ai_cv_enhancer — 3 credits
+/compress_pdf — 1 credit
+
+Share your own link too: /refer
+`,
+
+  normalWelcome: `
+🎊 *Welcome to DocCenter!*
+
+You have *10 FREE credits* to get started.
+No payment needed.
+
+*Try these first:*
+1️⃣ /document_photo_pack (5 credits)
+   → Passport-ready photo in 60 seconds
+
+2️⃣ /compress_pdf (1 credit)
+   → Shrink any PDF instantly
+
+3️⃣ /ai_cv_enhancer (3 credits)
+   → Professional CV improvement
+
+*Want more free credits?*
+Share your referral link: /refer
+Earn 3 credits for every friend who joins.
 `,
 
   // Sent when user types /pdf
@@ -132,6 +174,7 @@ Credits never expire. Pay once, use anytime.
 /image — Image tools
 /credits — Buy credits
 /balance — Check your credits
+/refer — Refer friends & earn credits
 /help — This message
 
 📞 *Need help?* Message @Anene1
