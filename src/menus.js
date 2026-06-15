@@ -13,13 +13,13 @@ const menus = {
 Transform your workflow with instant, high-performance tools designed for excellence. From professional AI analysis to studio-quality image editing, we deliver results in seconds.
 
 🚀 *The DocCenter Advantage:*
-• ✅ **AI Intelligence:** Summarize docs & rewrite CVs.
-• ✅ **Studio Visuals:** Background removal & Pro photos.
-• ✅ **Seamless Utility:** Compress, convert, & transcribe.
-• ✅ **Frictionless:** Pay in ₦ — No account required.
+• ✅ *AI Intelligence:* Summarize docs & rewrite CVs.
+• ✅ *Studio Visuals:* Background removal & Pro photos.
+• ✅ *Seamless Utility:* Compress, convert, & transcribe.
+• ✅ *Frictionless:* Pay in ₦ — No account required.
 
 *Select a category to begin:*
-🎁 **Refer & Earn** — /refer
+🎁 *Refer & Earn* — /refer
 🤖 **AI Features** — /ai
 📄 **Document Suite** — /pdf
 🖼 **Image Studio** — /image
@@ -27,6 +27,9 @@ Transform your workflow with instant, high-performance tools designed for excell
 📦 **Premium Packs** — /packs
 💳 **Get Credits** — /credits
 ❓ **Support** — /help
+
+*Want more free credits?* Share your referral link: /refer
+Earn 3 credits for every friend who joins.
 `,
 
   referralWelcome: `

@@ -74,19 +74,20 @@ const BOT_USERNAME = process.env.BOT_USERNAME || 'DocCenterBot';
 
 // Safely escape Markdown characters
 function escapeMarkdown(text) {
-  // For Markdown v1, escaping underscores and brackets is essential.
-  // Clickable commands like /tool_name still work correctly when underscores are escaped.
-  return String(text).replace(/([_\[\]\(\)\*])/g, (match, p1) => {
-    // Only escape if it's not part of a markdown-like structure we want to keep
-    // This is a simplified safe-guard.
-    return '\\' + p1;
-  });
+  // Removing the aggressive escaping that caused unwanted backslashes.
+  return String(text);
 }
 
 // Safely send Markdown text
 async function sendMarkdownSafe(ctx, text, extra = {}) {
   try {
-    return await ctx.reply(escapeMarkdown(text), { parse_mode: 'Markdown', ...extra });
+    // Convert standard Markdown **bold** to Telegram Markdown *bold*
+    // and remove backslashes to clean up the UI as requested.
+    const processedText = String(text)
+      .replace(/\*\*(.*?)\*\*/g, '*$1*')
+      .replace(/\\/g, '');
+
+    return await ctx.reply(processedText, { parse_mode: 'Markdown', ...extra });
   } catch (e) {
     // Fallback: send as plain text
     try { return await ctx.reply(String(text), extra); } catch (er) { console.error('Failed to send message:', er); }
@@ -334,23 +335,28 @@ async function startBot() {
     userState.delete(userId);
 
     const payload = ctx.startPayload;
+    let referralNote = "";
+
     if (payload && payload.startsWith('DOC-')) {
       const reg = await registerReferral(userId, payload);
       if (reg.success) {
-        return sendMarkdownSafe(ctx, menus.referralWelcome + `\n\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
+        referralNote = "\n\n🎊 *Referral bonus pending!* Use any tool to claim your +5 bonus credits.";
       }
     }
 
-    return sendMarkdownSafe(ctx, menus.normalWelcome + `\n\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
-    /* Old code removed for brevity
-    // Show admin-only commands in the welcome message when applicable
+    const balance = await getCredits(userId);
     let welcomeText = menus.welcome;
+
+    if (referralNote) welcomeText += referralNote;
+
     const adminId = process.env.ADMIN_TELEGRAM_ID;
     if (adminId && ctx.from.id.toString() === adminId.toString()) {
       welcomeText += '\n\n⚙️ Admin: /diagnose — Run network diagnostics';
     }
-sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n🎁 *Earn Free Credits:* Invite friends with /refer\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
-    */
+
+    welcomeText += `\n\n────────────────────\n💳 *Account Balance:* ${balance} credits`;
+
+    return sendMarkdownSafe(ctx, welcomeText);
   });
 
   // ── /cancel ─────────────────────────────────
