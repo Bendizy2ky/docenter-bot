@@ -67,8 +67,9 @@ module.exports = (bot, shared) => {
 
   return {
     canHandle: (tool) => ['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'apply_background'].includes(tool),
-    process: async (ctx, tool, fileBuffer, fileName, mimeType, state) => {
-      const { safelySendFile, balance, cost } = shared;
+    process: async (ctx, tool, fileBuffer, fileName, mimeType, state, extendedShared) => {
+      const { safelySendFile } = shared;
+      const { balance, cost } = extendedShared;
 
       if (tool === 'compress_image') {
         const res = await compressImage(fileBuffer, mimeType || 'image/jpeg');

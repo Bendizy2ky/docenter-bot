@@ -83,24 +83,35 @@ function escapeMarkdown(text) {
 // Safely send Markdown text
 async function sendMarkdownSafe(ctx, text, userId = null, checkLowCredits = false, extra = {}) {
   try {
-    // Convert standard Markdown **bold** to Telegram Markdown *bold*,
-    // remove backslashes to clean up the UI, then escape underscores
-    // to prevent parsing errors (the backslash will be invisible in the UI).
-    let processedText = String(text)
-      .replace(/\*\*(.*?)\*\*/g, '*$1*')
-      .replace(/\\/g, '')
-      .replace(/_/g, '\\_');
+    // Senior Fix: Transition to HTML parse mode for reliability.
+    // Telegram's Markdown parser is notoriously fragile, especially with underscores in commands.
+    let html = String(text)
+      .replace(/\\/g, '') // Remove existing backslashes per user request
+      .replace(/&/g, '&amp;') // Escape HTML special characters
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      // Convert Markdown bold (** or *) to HTML <b>
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+      .replace(/\*(.*?)\*/g, '<b>$1</b>')
+      // Convert Markdown italics (_) to HTML <i>, but only if not part of a word/command
+      .replace(/(^|\s)_(.*?)_(\s|$|[.,!?;:])/g, '$1<i>$2</i>$3')
+      // Convert Markdown code (`) to HTML <code>
+      .replace(/`(.*?)`/g, '<code>$1</code>');
 
     // Append referral prompt if credits are low
     if (checkLowCredits && userId) {
       const balance = await getCredits(userId);
       if (balance <= LOW_CREDIT_THRESHOLD) {
         const promo = menus.referralPromptLowCredits || "\n\n🎁 *Low on credits?* Share your link via /refer to earn free credits!";
-        processedText += `\n${promo}`;
+        // Process promo text for basic bold/italic support
+        const processedPromo = promo
+          .replace(/\*(.*?)\*/g, '<b>$1</b>')
+          .replace(/(^|\s)_(.*?)_(\s|$|[.,!?;:])/g, '$1<i>$2</i>$3');
+        html += `\n${processedPromo}`;
       }
     }
 
-    return await ctx.reply(processedText, { parse_mode: 'Markdown', ...extra });
+    return await ctx.reply(html, { parse_mode: 'HTML', ...extra });
   } catch (e) {
     // Fallback: send as plain text
     try { return await ctx.reply(String(text), extra); } catch (er) { console.error('Failed to send message:', er); }
@@ -173,18 +184,23 @@ async function downloadTelegramFile(fileId, botOrTokenOrCtx) {
  */
 async function safelySendFile(ctx, buffer, filename, caption) {
   try {
-    // Process caption to ensure markdown entities are correctly escaped
-    // using the same logic as sendMarkdownSafe.
+    // Senior Fix: Use HTML for captions to prevent "can't parse entities" errors
+    // when commands like /passport_photo are present in the text.
     const processedCaption = caption ? String(caption)
-      .replace(/\*\*(.*?)\*\*/g, '*$1*')
       .replace(/\\/g, '')
-      .replace(/_/g, '\\_') : '';
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+      .replace(/\*(.*?)\*/g, '<b>$1</b>')
+      .replace(/(^|\s)_(.*?)_(\s|$|[.,!?;:])/g, '$1<i>$2</i>$3')
+      .replace(/`(.*?)`/g, '<code>$1</code>') : '';
 
     const FormData = require('form-data');
     const form = new FormData();
     form.append('chat_id', String(ctx.chat.id));
     form.append('caption', processedCaption);
-    form.append('parse_mode', 'Markdown');
+    form.append('parse_mode', 'HTML');
     form.append('document', buffer, {
       filename: filename,
       knownLength: buffer.length,

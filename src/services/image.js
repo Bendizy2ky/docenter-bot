@@ -235,6 +235,9 @@ async function convertImage(fileBuffer, targetFormat) {
  */
 async function applyBackground(transparentPngBuffer, color) {
   try {
+    const startTime = Date.now();
+    const initialMemory = process.memoryUsage().rss;
+
     // 1. Parse the color string into RGB values
     const parsedColor = parseColor(color);
     if (!parsedColor) {
@@ -261,6 +264,12 @@ async function applyBackground(transparentPngBuffer, color) {
       .composite([{ input: transparentPngBuffer, blend: 'over' }])
       .jpeg({ quality: 95 }) // 5. Return a JPEG buffer at 95% quality
       .toBuffer();
+
+    const duration = Date.now() - startTime;
+    const memoryImpact = (process.memoryUsage().rss - initialMemory) / 1024 / 1024;
+
+    console.log(`[Sharp Performance] applyBackground (${width}x${height}): ${duration}ms`);
+    console.log(`[Sharp Performance] RSS Memory Impact: ~${memoryImpact.toFixed(2)} MB`);
 
     return {
       success: true,
