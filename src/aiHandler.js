@@ -78,7 +78,7 @@ module.exports = (bot, shared) => {
         throw new Error('Failed to extract text from your file. Please ensure the document is not corrupted or encrypted.');
       }
 
-      const textToProcess = extractedText.trim().slice(0, 15000);
+      const textToProcess = extractedText.trim().slice(0, 8000);
       if (!textToProcess) {
         throw new Error('The document appears to be empty or its text could not be read.');
       }
@@ -96,7 +96,7 @@ module.exports = (bot, shared) => {
               }
             ],
             temperature: 0.7,
-            max_tokens: 2000,
+            max_tokens: 1200,
           },
           {
             headers: {

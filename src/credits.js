@@ -223,10 +223,11 @@ async function completeReferral(userId) {
     const referrer = all[referrerId];
     const currentMonth = new Date().toISOString().slice(0, 7);
 
-    // Anti-Farming: Check if user joined at least 24 hours ago
-    const joinedAt = new Date(user.joinedAt).getTime();
+    // Anti-Farming: Check if user joined at least 24 hours ago. 
+    // Default to a very old date if joinedAt is missing to prevent errors.
+    const joinedAt = user.joinedAt ? new Date(user.joinedAt).getTime() : 0;
     const now = Date.now();
-    if (now - joinedAt < 24 * 60 * 60 * 1000) {
+    if (now - joinedAt < 24 * 60 * 60 * 1000 && joinedAt !== 0) {
       console.log(`Referral ignored for ${id}: Account too new (farming protection).`);
       referrerId = null; 
     }
