@@ -1,5 +1,5 @@
 const { getReferralCode, getReferralStats } = require('./credits');
-const { getNextMilestone } = require('./utils/referralUtils');
+const { getNextMilestone } = require('./referralUtils');
 
 module.exports = (bot, shared) => {
   const { sendMarkdownSafe } = shared;
