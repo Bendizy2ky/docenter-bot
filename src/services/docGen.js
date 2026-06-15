@@ -36,8 +36,7 @@ async function generateDocx(text, title = "Professional Document") {
       });
     });
 
-    docParagraphs.push(
-    return new Paragraph({
+    docParagraphs.push(new Paragraph({
         children: children,
       spacing: {
           before: isHeading ? 240 : 120,

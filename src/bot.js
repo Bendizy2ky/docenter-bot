@@ -422,22 +422,22 @@ sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n🎁 *Earn Free Credits:
   // ── Tool Command Triggers ──────────────────
   bot.command('compress_pdf', (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'compress_pdf' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress.'));
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress. (Max 10MB)'));
   });
 
   bot.command('pdf_to_word', (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'pdf_to_word' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word.'));
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word. (Max 10MB)'));
   });
 
   bot.command('docx_to_pdf', (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'docx_to_pdf' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *Word (.docx)* file you want to convert to PDF.'));
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *Word (.docx)* file you want to convert to PDF. (Max 10MB)'));
   });
 
   bot.command('transcribe', (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'transcribe_audio' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe.'));
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe. (Max 10MB)'));
   });
 
   bot.command(['apply_background', 'applybackground'], (ctx) => {
@@ -793,12 +793,25 @@ sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n🎁 *Earn Free Credits:
     const state = userState.get(userId);
     if (!state) return sendMarkdownSafe(ctx, 'Please choose a tool first.\n\nType /pdf for PDF tools or /image for image tools.');
     
-    // --- Security: File Size Validation ---
+    // --- Proactive File Sensitivity: Tool-Specific Validation ---
     const fileSize = ctx.message.document?.file_size || ctx.message.photo?.[0]?.file_size || 0;
-    const MAX_SIZE = (Number(process.env.MAX_FILE_SIZE_MB) || 20) * 1024 * 1024;
+    
+    let toolLimitMB = 20; // Global fallback
+
+    if (['ai_summarize', 'cv_enhance'].includes(state.tool)) {
+      toolLimitMB = 5; 
+    } else if (['compress_image', 'remove_background', 'passport_photo', 'apply_background', 'convert_image', 'photo_fix'].includes(state.tool)) {
+      toolLimitMB = 5; 
+    } else if (state.tool === 'transcribe_audio') {
+      toolLimitMB = 10;
+    } else if (state.tool.includes('pdf') || state.tool.includes('docx')) {
+      toolLimitMB = 10;
+    }
+
+    const MAX_SIZE = toolLimitMB * 1024 * 1024;
 
     if (fileSize > MAX_SIZE) {
-      return ctx.reply(`⚠️ File too large. Max limit is ${process.env.MAX_FILE_SIZE_MB || 20}MB.`);
+      return ctx.reply(`I'm sorry, but this file is a bit too large for this specific task. To ensure high-quality results, please try a smaller file (under ${toolLimitMB}MB).`);
     }
 
     const cost = TOOL_COSTS[state.tool];
@@ -952,19 +965,19 @@ sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n🎁 *Earn Free Credits:
       // Map common menu commands to the same behavior as bot.command handlers
       if (cmd === 'compress_image' || cmd === 'compressimage') {
         userState.set(userId, { tool: 'compress_image' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG).'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG). (Max 5MB)'));
       }
       if (cmd === 'remove_background' || cmd === 'removebackground') {
         userState.set(userId, { tool: 'remove_background' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG).'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG). (Max 5MB)'));
       }
       if (cmd === 'passport_photo' || cmd === 'passportphoto') {
         userState.set(userId, { tool: 'passport_photo' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send a *clear, front-facing photo*.\n\n' + menus.passportGuide));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send a *clear, front-facing photo*. (Max 5MB)\n\n' + menus.passportGuide));
       }
       if (cmd === 'apply_background' || cmd === 'applybackground') {
         userState.set(userId, { tool: 'apply_background' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (Max 5MB)'));
       }
       if (cmd === 'convert_image' || cmd === 'convertimage') {
         return sendMarkdownSafe(ctx,
@@ -973,15 +986,15 @@ sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n🎁 *Earn Free Credits:
       }
       if (cmd === 'to_png' || cmd === 'topng') {
         userState.set(userId, { tool: 'convert_image', target: 'png' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'));
       }
       if (cmd === 'to_jpg' || cmd === 'tpjpg') {
         userState.set(userId, { tool: 'convert_image', target: 'jpg' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'));
       }
       if (cmd === 'to_webp' || cmd === 'towebp') {
         userState.set(userId, { tool: 'convert_image', target: 'webp' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'));
       }
       
       // AI & Professional Tools Re-routing
@@ -999,27 +1012,27 @@ sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n🎁 *Earn Free Credits:
       }
       if (cmd === 'photo_fix' || cmd === 'photofix') {
         userState.set(userId, { tool: 'photo_fix' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance. (Max 5MB)'));
       }
       if (cmd === 'transcribe') {
         userState.set(userId, { tool: 'transcribe_audio' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe. (Max 10MB)'));
       }
       if (cmd === 'summarize' || cmd === 'ai_summarise' || cmd === 'ai_summarize') {
         userState.set(userId, { tool: 'ai_summarize' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *document* you want me to summarize.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *document* you want me to summarize. (Best for documents up to 15 pages)'));
       }
       if (cmd === 'cv_enhance' || cmd === 'cvenhance' || cmd === 'ai_cv_enhancer') {
         userState.set(userId, { tool: 'cv_enhance' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Send your *CV (PDF or Word)* for enhancement.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Send your *CV (PDF or Word)* for enhancement. (Max 5 pages recommended)'));
       }
       if (cmd === 'compress_pdf' || cmd === 'compresspdf') {
         userState.set(userId, { tool: 'compress_pdf' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress. (Max 10MB)'));
       }
       if (cmd === 'pdf_to_word' || cmd === 'pdftoword') {
         userState.set(userId, { tool: 'pdf_to_word' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word.'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word. (Max 10MB)'));
       }
 
       // Re-route top-level menu clicks
