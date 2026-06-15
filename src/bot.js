@@ -72,32 +72,20 @@ const userLastRequests = new Map();
 
 const BOT_USERNAME = process.env.BOT_USERNAME || 'DocCenterBot';
 
-// Safely escape Markdown characters while preserving commands
+// Safely escape Markdown characters
 function escapeMarkdown(text) {
-  let s = String(text);
-  // Protect slash-commands so they remain clickable (e.g. /compress_image)
-  const placeholders = [];
-  s = s.replace(/\/[A-Za-z0-9_@]+/g, (m) => {
-    const key = `@@CMD${placeholders.length}@@`;
-    placeholders.push(m);
-    return key;
-  });
-  // Escape remaining problematic Markdown chars
-  let safe = s.replace(/([_\[\]])/g, '\\$1');
-  // Restore commands
-  placeholders.forEach((cmd, i) => {
-    safe = safe.replace(`@@CMD${i}@@`, cmd);
-  });
-  return safe;
+  // For Markdown v1, escaping underscores and brackets is essential.
+  // Clickable commands like /tool_name still work correctly when underscores are escaped.
+  return String(text).replace(/([_\[\]])/g, '\\$1');
 }
 
 // Safely send Markdown text
-async function sendMarkdownSafe(ctx, text) {
+async function sendMarkdownSafe(ctx, text, extra = {}) {
   try {
-    return await ctx.reply(escapeMarkdown(text), { parse_mode: 'Markdown' });
+    return await ctx.reply(escapeMarkdown(text), { parse_mode: 'Markdown', ...extra });
   } catch (e) {
     // Fallback: send as plain text
-    try { return await ctx.reply(String(text)); } catch (er) { console.error('Failed to send message:', er); }
+    try { return await ctx.reply(String(text), extra); } catch (er) { console.error('Failed to send message:', er); }
   }
 }
 
@@ -734,7 +722,7 @@ async function startBot() {
       if (sent) {
         const remaining = await deductCredits(userId, exportCost);
         await ctx.telegram.deleteMessage(ctx.chat.id, editMsg.message_id);
-        await sendMarkdownSafe(ctx, `✅ Document delivered! Remaining balance: *${remaining}* credits.`);
+        await sendMarkdownSafe(ctx, menus.success('doc_export', remaining));
         userState.delete(userId);
       }
     } catch (e) {
@@ -852,7 +840,7 @@ async function startBot() {
                 ]]
               }
             };
-            await ctx.reply(escapeMarkdown(menus.success(state.tool, finalBalance)), { parse_mode: 'Markdown', ...extra });
+            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), extra);
           } else {
             await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance));
           }

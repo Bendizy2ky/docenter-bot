@@ -301,8 +301,18 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
     const inputPath = path.join(tmpDir, fileName.replace(/[^a-z0-9\.\-_]/gi, '_'));
     fs.writeFileSync(inputPath, fileBuffer);
 
+    // Redirect user profile to tmpDir to avoid permission errors on restricted hosts
+    const userProfile = `file://${tmpDir}/profile`;
     const prog = process.platform === 'win32' ? 'soffice.exe' : 'soffice';
-    const res = spawnSync(prog, ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, inputPath], { timeout: 120000 });
+    const res = spawnSync(prog, [
+      `-env:UserInstallation=${userProfile}`,
+      '--headless',
+      '--convert-to',
+      'pdf',
+      '--outdir',
+      tmpDir,
+      inputPath
+    ], { timeout: 120000 });
 
     if (res.status !== 0) {
       cleanupTmp(tmpDir);
@@ -352,7 +362,16 @@ async function tryLocalLibreOfficeConversion(fileBuffer, fileName) {
   // Example: soffice --headless --convert-to docx --outdir <tmpDir> <inputPath>
   try {
     const prog = process.platform === 'win32' ? 'soffice.exe' : 'soffice';
-    const res = spawnSync(prog, ['--headless', '--convert-to', 'docx', '--outdir', tmpDir, inputPath], { timeout: 120000 });
+    const userProfile = `file://${tmpDir}/profile`;
+    const res = spawnSync(prog, [
+      `-env:UserInstallation=${userProfile}`,
+      '--headless',
+      '--convert-to',
+      'docx',
+      '--outdir',
+      tmpDir,
+      inputPath
+    ], { timeout: 120000 });
     if (res.error) {
       console.warn('LibreOffice convert spawn error:', res.error && res.error.message);
       cleanupTmp(tmpDir);
