@@ -439,8 +439,7 @@ async function startBot() {
       `🗂 *Professional Passport Pack (2 Steps)*\n\n` +
       `Step 1: Background Removal\n` +
       `Step 2: Passport Resizing\n\n` +
-      `📎 Please send your photo to begin Step 1.`, userId, true
-    );
+      `📎 Please send your photo to begin Step 1.`, userId, true);
   });
 
   // ── Tool Command Triggers ──────────────────
