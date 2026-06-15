@@ -83,11 +83,13 @@ function escapeMarkdown(text) {
 // Safely send Markdown text
 async function sendMarkdownSafe(ctx, text, userId = null, checkLowCredits = false, extra = {}) {
   try {
-    // Convert standard Markdown **bold** to Telegram Markdown *bold*
-    // and remove backslashes to clean up the UI as requested.
+    // Convert standard Markdown **bold** to Telegram Markdown *bold*,
+    // remove backslashes to clean up the UI, then escape underscores
+    // to prevent parsing errors (the backslash will be invisible in the UI).
     let processedText = String(text)
       .replace(/\*\*(.*?)\*\*/g, '*$1*')
-      .replace(/\\/g, '');
+      .replace(/\\/g, '')
+      .replace(/_/g, '\\_');
 
     // Append referral prompt if credits are low
     if (checkLowCredits && userId) {
@@ -171,10 +173,17 @@ async function downloadTelegramFile(fileId, botOrTokenOrCtx) {
  */
 async function safelySendFile(ctx, buffer, filename, caption) {
   try {
+    // Process caption to ensure markdown entities are correctly escaped
+    // using the same logic as sendMarkdownSafe.
+    const processedCaption = caption ? String(caption)
+      .replace(/\*\*(.*?)\*\*/g, '*$1*')
+      .replace(/\\/g, '')
+      .replace(/_/g, '\\_') : '';
+
     const FormData = require('form-data');
     const form = new FormData();
     form.append('chat_id', String(ctx.chat.id));
-    form.append('caption', caption || '');
+    form.append('caption', processedCaption);
     form.append('parse_mode', 'Markdown');
     form.append('document', buffer, {
       filename: filename,
