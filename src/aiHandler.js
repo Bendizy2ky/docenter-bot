@@ -16,8 +16,26 @@ module.exports = (bot, shared) => {
   });
 
   bot.command('generate_image', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'ai_image_generator' });
-    sendMarkdownSafe(ctx, "🎨 *AI Image Generator*\n\nDescribe the image you want to create (e.g., 'A futuristic city in the style of Van Gogh' or 'A cute robot drinking coffee').\n\nCost: 5 credits.");
+    const userId = ctx.from.id.toString();
+    userState.set(userId, { tool: 'ai_image_generator' });
+    
+    const guidance = "🎨 *AI Image Generator*\n\n" +
+      "Describe the image you want in detail.\n\n" +
+      "*Examples of good prompts:*\n" +
+      "- A professional Nigerian woman in business attire standing in a modern Lagos office\n" +
+      "- A bowl of jollof rice and fried chicken on a white background, food photography\n" +
+      "- A small shop in a Nigerian market with colourful fabrics on display\n" +
+      "- A clean minimalist logo for a Nigerian tech startup\n\n" +
+      "*Tips:*\n" +
+      "✅ Be specific and descriptive\n" +
+      "✅ Mention style (realistic, cartoon, professional, artistic)\n" +
+      "✅ Mention background and colours\n" +
+      "❌ Avoid very short prompts like 'a car'\n\n" +
+      "Cost: 2 credits\n" +
+      "⏳ Takes 15–45 seconds\n\n" +
+      "*Type your image description now:*";
+
+    sendMarkdownSafe(ctx, guidance);
   });
 
   // Handler for text prompts for Image Generation
@@ -31,77 +49,109 @@ module.exports = (bot, shared) => {
 
     console.log(`[AI Handler] Processing prompt for ${userId}: "${ctx.message.text.substring(0, 20)}..."`);
 
-    const prompt = ctx.message.text.trim().substring(0, 500); // Sanitize and limit length
-    const { getCredits, deductCredits, deleteProcessingMessage, safelySendFile } = shared;
+    const userPrompt = ctx.message.text.trim();
+    const { getCredits, deductCredits, deleteProcessingMessage, safelySendFile, sendMarkdownSafe } = shared;
     const cost = TOOL_COSTS.ai_image_generator;
     const balance = await getCredits(userId);
 
     if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits('Image Generation', cost, balance));
 
-    const msg = await sendMarkdownSafe(ctx, menus.processing('image generation'));
+    const processingMsg = await ctx.reply(
+      '🎨 Generating your image...\n' +
+      '⏳ This usually takes 15–45 seconds to render.\n' +
+      'Please wait...'
+    );
 
     try {
-      let buffer = null;
-      let lastError = null;
-      const maxRetries = 2;
+      const result = await generateImageWithRetry(userPrompt);
 
-      // Implementation of a retry loop to handle intermittent upstream failures
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          const seed = Math.floor(Math.random() * 1000000);
-          // Use the more reliable base endpoint and include the 'model' parameter for better results
-          const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
-          
-          const response = await axios.get(imageUrl, { 
-            responseType: 'arraybuffer', 
-            timeout: 60000, // 60s per individual attempt
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-              'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-              'Cache-Control': 'no-cache'
-            }
-          });
-
-          const contentType = response.headers['content-type'] || '';
-          // Defensive check against HTML error pages served with 200 status
-          if (!contentType.startsWith('image/')) {
-            throw new Error(`Upstream returned ${contentType} instead of image data.`);
-          }
-
-          if (response.data.length < 5000) {
-            throw new Error('Payload too small to be a valid image.');
-          }
-
-          buffer = Buffer.from(response.data);
-          break; // Exit loop on success
-        } catch (err) {
-          lastError = err;
-          const status = err.response?.status;
-          console.warn(`[AI Handler] Attempt ${attempt} failed (Status: ${status || 'Timeout'}): ${err.message}`);
-          
-          if (attempt < maxRetries) {
-            // Linear backoff: wait 2s, then 4s...
-            await new Promise(r => setTimeout(r, 2000 * attempt));
-          }
-        }
+      if (!result.success) {
+        await deleteProcessingMessage(ctx, processingMsg.message_id);
+        return await sendMarkdownSafe(ctx, `⚠️ ${result.error}`);
       }
 
-      if (!buffer) {
-        throw lastError || new Error('Image generation exhausted all retry attempts.');
+      const caption = `✅ *Image Generated!*\n\nPrompt: _${result.prompt}_\n\n` +
+                      `Credits used: ${cost}\n` +
+                      `Credits remaining: *${balance - cost}*\n\n` +
+                      `_Want another? Just describe a new image._`;
+
+      const sent = await safelySendFile(ctx, result.buffer, 'generated_image.jpg', caption);
+
+      if (sent) {
+        await deductCredits(userId, cost);
+      } else {
+        await ctx.reply('⚠️ Processing failed or file could not be delivered. No credits were deducted.');
       }
-
-      const caption = `✅ *Image Generated!*\n\nPrompt: _${prompt}_\n\n💳 Credits remaining: *${balance - cost}*`;
-      const sent = await safelySendFile(ctx, buffer, 'generated_image.jpg', caption);
-
-      if (sent) await deductCredits(userId, cost);
     } catch (error) {
       console.error('Pollinations AI error:', error.message);
       await sendMarkdownSafe(ctx, '⚠️ Failed to generate image. Please try a different description or try again later.');
     } finally {
-      await deleteProcessingMessage(ctx, msg.message_id);
+      await deleteProcessingMessage(ctx, processingMsg.message_id);
       userState.delete(userId);
     }
   });
+
+  async function generateImageWithPollinations(prompt) {
+    try {
+      const cleanPrompt = prompt.trim().replace(/[^\w\s,.-]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!cleanPrompt || cleanPrompt.length < 3) {
+        return { success: false, error: 'Prompt is too short. Please describe the image you want.' };
+      }
+      
+      const encodedPrompt = encodeURIComponent(cleanPrompt);
+      const seed = Math.floor(Math.random() * 999999);
+      const timeout = parseInt(process.env.IMAGE_GEN_TIMEOUT_MS) || 90000;
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&enhance=true&seed=${seed}`;
+      
+      console.log(`[Image Gen] Requesting: ${imageUrl}`);
+      
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: timeout,
+        headers: {
+          'Accept': 'image/jpeg,image/png,image/webp,image/*',
+          'User-Agent': 'Mozilla/5.0 DocCenterBot/1.0'
+        },
+        maxRedirects: 5
+      });
+      
+      const contentType = response.headers['content-type'] || '';
+      console.log(`[Image Gen] Response content-type: ${contentType}`);
+      
+      if (!contentType.includes('image')) {
+        const preview = Buffer.from(response.data).toString('utf8').slice(0, 200);
+        console.error(`[Image Gen] Got non-image response: ${preview}`);
+        return { success: false, error: 'Image generation service is temporarily busy. Please try again in a moment.' };
+      }
+      
+      const imageBuffer = Buffer.from(response.data);
+      console.log(`[Image Gen] Success. Buffer size: ${imageBuffer.length} bytes`);
+      
+      return { success: true, buffer: imageBuffer, contentType: contentType, prompt: cleanPrompt };
+    } catch (error) {
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        return { success: false, error: 'Image generation timed out. Our rendering engine is experiencing high demand. Please try again or refine your description.' };
+      }
+      console.error(`[Image Gen] Error: ${error.message}`);
+      return { success: false, error: 'Could not generate image right now. Please try again in a few minutes.' };
+    }
+  }
+
+  async function generateImageWithRetry(prompt, maxAttempts = 2) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      console.log(`[Image Gen] Attempt ${attempt} of ${maxAttempts}`);
+      const result = await generateImageWithPollinations(prompt);
+      if (result.success) return result;
+      if (attempt < maxAttempts) {
+        console.log(`[Image Gen] Attempt ${attempt} failed. Retrying in 5 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+    return {
+      success: false,
+      error: 'Image generation failed after several attempts. Our systems are currently under heavy load. Please try again shortly.'
+    };
+  }
 
   return {
     canHandle: (tool) => ['ai_summarize', 'cv_enhance'].includes(tool),

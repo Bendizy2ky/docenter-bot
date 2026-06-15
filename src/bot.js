@@ -47,7 +47,7 @@ const TOOL_COSTS = {
   apply_background:   3,
   ai_summarize:       5,
   cv_enhance:         10,
-  ai_image_generator: 5,
+  ai_image_generator: 2,
   photo_fix:          3,
   document_photo_pack: 6,
   business_photo_pack: 8,
@@ -428,14 +428,14 @@ async function startBot() {
     sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe.'));
   });
 
-  bot.command('apply_background', (ctx) => {
+  bot.command(['apply_background', 'applybackground'], (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'apply_background' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (2 credits)'));
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for.'));
   });
 
-  bot.command('convert_image', (ctx) => {
+  bot.command(['convert_image', 'convertimage'], (ctx) => {
     userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.image);
+    sendMarkdownSafe(ctx, menus.image + '\n\nChoose an output format above to begin.');
   });
 
   // ── Admin Commands ──────────────────────────
