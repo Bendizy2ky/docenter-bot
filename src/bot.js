@@ -51,7 +51,8 @@ const TOOL_COSTS = {
   photo_fix:          3,
   document_photo_pack: 6,
   business_photo_pack: 8,
-  create_print_grid:   2
+  create_print_grid:   2,
+  doc_export:         3
 };
 
 // ─────────────────────────────────────────────
@@ -493,7 +494,7 @@ async function startBot() {
 
       await deleteProcessingMessage(ctx, msg.message_id);
       if (result.sent) {
-        await deductCredits(userId, cost);
+        const finalBalance = await deductCredits(userId, cost);
         
         // Check Referral Completion
         const refRes = await completeReferral(userId);
@@ -504,7 +505,7 @@ async function startBot() {
           await notifyReferrer(refRes.referrerId, refRes.referrerTotalEarned);
         }
 
-        await handleWorkflowProgression(ctx, userId, state, result.buffer);
+        await handleWorkflowProgression(ctx, userId, state, result.buffer, finalBalance);
       }
     } catch (e) {
       console.error('Workflow continue error:', e);
@@ -679,6 +680,59 @@ async function startBot() {
     await send('🔚 Diagnostics complete. If api.groq.ai fails to resolve with system DNS but succeeds with public DNS, update your host or DNS settings, or configure a proxy.');
   });
 
+  // --- Callback Query: Document Export ---
+  bot.on('callback_query', async (ctx) => {
+    const userId = ctx.from.id.toString();
+    const data = ctx.callbackQuery.data;
+    const state = userState.get(userId);
+
+    if (!state || state.tool !== 'export_suggest' || !state.aiText) {
+      return ctx.answerCbQuery('⚠️ Your session has expired. Please process the document again to export.');
+    }
+    if (data !== 'exp_docx' && data !== 'exp_pdf') return;
+
+    const exportCost = TOOL_COSTS.doc_export;
+    const balance = await getCredits(userId);
+    if (balance < exportCost) {
+      await ctx.answerCbQuery('❌ Not enough credits.');
+      return sendMarkdownSafe(ctx, menus.notEnoughCredits('Document Export', exportCost, balance));
+    }
+
+    await ctx.answerCbQuery('🚀 Generating your document...');
+    const editMsg = await ctx.reply('⏳ Crafting your premium document...');
+
+    try {
+      const { generateDocx } = require('./services/docGen');
+      const { docxToPdf } = require('./services/pdf');
+      
+      const title = state.sourceTool === 'cv_enhance' ? 'Elite Enhanced CV' : 'Executive Document Summary';
+      let buffer = await generateDocx(state.aiText, title);
+      let ext = '.docx';
+
+      if (data === 'exp_pdf') {
+        const pdfRes = await docxToPdf(buffer, 'document.docx');
+        if (!pdfRes.success) throw new Error(pdfRes.error);
+        buffer = pdfRes.buffer;
+        ext = '.pdf';
+      }
+
+      const fileName = `DocCenter_Elite_${Date.now()}${ext}`;
+      const caption = `✨ *Premium Export Complete*\n\nYour ${ext.toUpperCase()} has been professionally formatted.\n\nCredits used: ${exportCost}`;
+      
+      const sent = await safelySendFile(ctx, buffer, fileName, caption);
+      if (sent) {
+        const remaining = await deductCredits(userId, exportCost);
+        await ctx.telegram.deleteMessage(ctx.chat.id, editMsg.message_id);
+        await sendMarkdownSafe(ctx, `✅ Document delivered! Remaining balance: *${remaining}* credits.`);
+        userState.delete(userId);
+      }
+    } catch (e) {
+      console.error('Export error:', e);
+      await ctx.telegram.deleteMessage(ctx.chat.id, editMsg.message_id);
+      await ctx.reply('⚠️ Export failed. Please try again later.');
+    }
+  });
+
   // ── Buy Pack Commands ────────────────────────
   async function handleBuyPack(ctx, packKey) {
     const userId = ctx.from.id.toString();
@@ -758,7 +812,7 @@ async function startBot() {
       await deleteProcessingMessage(ctx, msg.message_id);
 
       if (result.sent) {
-        await deductCredits(userId, cost);
+        const finalBalance = await deductCredits(userId, cost);
 
         // Check Referral Completion
         const refRes = await completeReferral(userId);
@@ -769,7 +823,31 @@ async function startBot() {
           await notifyReferrer(refRes.referrerId, refRes.referrerTotalEarned);
         }
 
-        await handleWorkflowProgression(ctx, userId, state, result.buffer);
+        if (!state.isWorkflow) {
+          if (result.aiText) {
+            // Upgrade user state to suggest export
+            userState.set(userId, {
+              tool: 'export_suggest',
+              aiText: result.aiText,
+              sourceTool: result.tool,
+              originalFileName: fileName
+            });
+
+            const extra = {
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: '📄 Word (3 cr)', callback_data: 'exp_docx' },
+                  { text: '📑 PDF (3 cr)', callback_data: 'exp_pdf' }
+                ]]
+              }
+            };
+            await ctx.reply(menus.success(state.tool, finalBalance), { parse_mode: 'Markdown', ...extra });
+          } else {
+            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance));
+          }
+        }
+
+        await handleWorkflowProgression(ctx, userId, state, result.buffer, finalBalance);
       } else {
         await ctx.reply('⚠️ Processing failed or file could not be delivered. No credits were deducted.');
       }
@@ -783,7 +861,7 @@ async function startBot() {
     }
   });
 
-  async function handleWorkflowProgression(ctx, userId, state, buffer) {
+  async function handleWorkflowProgression(ctx, userId, state, buffer, finalBalance) {
     if (state.isWorkflow && state.currentStep < state.totalSteps - 1) {
       userState.advanceWorkflow(userId, { step: state.currentStep });
       userState.setTempFile(userId, buffer);
@@ -796,10 +874,14 @@ async function startBot() {
         TOOL_COSTS[nextTool]
       ));
     } else if (state.isWorkflow) {
-      await sendMarkdownSafe(ctx, menus.workflowComplete(state.workflow));
+      await sendMarkdownSafe(ctx, menus.workflowComplete(state.workflow, finalBalance));
       userState.delete(userId);
     } else {
-      userState.delete(userId);
+      // Don't delete if we are waiting for an export selection
+      const currentState = userState.get(userId);
+      if (!currentState || currentState.tool !== 'export_suggest') {
+        userState.delete(userId);
+      }
     }
   }
 

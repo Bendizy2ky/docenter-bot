@@ -131,14 +131,28 @@ Your balance: *${balance} credits*
 Type /credits to top up.
 `,
 
+  premiumMarketer: {
+    getSuggestion: (tool) => {
+      const suggestions = {
+        ai_summarize: "Your insights are ready. Would you like me to generate a professionally formatted document of this summary? (3 credits)\n\nAlternatively, ensure your own professional profile is as sharp as this summary—our /ai_cv_enhancer is the perfect next step.",
+        cv_enhance: "That's a world-class resume! To complete your elite presentation, I can generate a move-ready Word or PDF version for you. (3 credits)\n\nAlso, our /passport_photo tool ensures your application image is just as high-impact.",
+        compress_pdf: "Optimization complete. If you need to dive deeper into this document, our /summarize tool can provide an executive overview in seconds.",
+        pdf_to_word: "Seamlessly converted. If this document is part of a career move, our /ai_cv_enhancer is ready to help you land that interview.",
+        remove_background: "Visuals refined. For a truly professional finish, use our /passport_photo tool to prepare this image for any corporate or official use.",
+        passport_photo: "Excellence delivered. Now that your photo is ready, let's make sure your professional summary matches—try our /ai_cv_enhancer.",
+        transcribe_audio: "Transcription finalized. For a high-level briefing on these notes, our /summarize tool is just one click away.",
+        "Professional Passport Pack": "Your elite passport assets are ready. If you're preparing these for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
+        default: "Precision processing complete. Our elite suite of AI tools is designed to keep you ahead—type /start to explore our premium services."
+      };
+      return suggestions[tool] || suggestions.default;
+    }
+  },
+
   // Sent after a tool completes successfully
-  success: (tool, remaining) => `
-✅ *Done! Your ${tool} result is above.*
-
-Credits remaining: *${remaining}*
-
-Need more tools? Type /start
-`,
+  success: (tool, remaining) => {
+    const suggestion = menus.premiumMarketer.getSuggestion(tool);
+    return `✨ *Premium Results Delivered*\n\n${suggestion}\n\n💳 Credits remaining: *${remaining}*`;
+  },
 
   // Sent when something goes wrong during processing
   error: (tool) => `
@@ -162,7 +176,7 @@ Please try again. If the problem continues, message @Anene1 for help.
   workflowCancelled: `❌ *Workflow cancelled.* Your session has been cleared.\n\nType /start to see the main menu.`,
 
   workflowNextStepPrompt: (nextStepName, cost) => `
-✨ *Step complete!*
+✨ *Step Processed Successfully*
 
 Would you like to proceed to the next step: *${nextStepName}*?
 Cost: ${cost} credits.
@@ -170,13 +184,10 @@ Cost: ${cost} credits.
 Click /continue to proceed with the current file, or /finish to end this session.
 `,
 
-  workflowComplete: (name) => `
-🎉 *Workflow Complete!*
-
-The *${name}* process is finished. All processed files have been delivered.
-
-Type /start for more tools.
-`,
+  workflowComplete: (name, remaining) => {
+    const suggestion = menus.premiumMarketer.getSuggestion(name);
+    return `🎉 *Workflow Complete!*\n\nThe *${name}* process is finished. All processed files have been delivered.\n\n✨ *Premium Suggestion*\n${suggestion}\n\n💳 Credits remaining: *${remaining}*`;
+  },
 
 };
 
