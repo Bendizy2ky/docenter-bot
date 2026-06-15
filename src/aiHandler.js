@@ -7,12 +7,12 @@ module.exports = (bot, shared) => {
 
   bot.command(['summarize', 'ai_summarise', 'ai_summarize'], (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'ai_summarize' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send the *document* you want me to summarize.\n\nCost: ${TOOL_COSTS.ai_summarize} credits`));
+    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send the *document* you want me to summarize. (Best for documents up to 15 pages)\n\nCost: ${TOOL_COSTS.ai_summarize} credits`));
   });
 
   bot.command(['cv_enhance', 'cvenhance', 'ai_cv_enhancer'], (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'cv_enhance' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Send your *CV (PDF or Word)*. I will analyze it and provide professional enhancements.\n\nCost: ${TOOL_COSTS.cv_enhance} credits`));
+    sendMarkdownSafe(ctx, menus.awaitingFile(`Send your *CV (PDF or Word)* for professional enhancement. (Max 5 pages recommended for best results)\n\nCost: ${TOOL_COSTS.cv_enhance} credits`));
   });
 
   bot.command('generate_image', async (ctx) => {
@@ -76,6 +76,10 @@ module.exports = (bot, shared) => {
       } catch (err) {
         console.error('Text extraction error:', err.message);
         throw new Error('Failed to extract text from your file. Please ensure the document is not corrupted or encrypted.');
+      }
+
+      if (extractedText.length > 12000) {
+        throw new Error('This document is a bit too long for me to analyze effectively in one go. Could you try a shorter version or a more concise document?');
       }
 
       const textToProcess = extractedText.trim().slice(0, 8000);
