@@ -201,7 +201,7 @@ Type /credits to top up.
         compress_pdf: "Optimization complete. If you need to dive deeper into this document, our /summarize tool can provide an executive overview in seconds.",
         pdf_to_word: "Seamlessly converted. If this document is part of a career move, our /ai_cv_enhancer is ready to help you land that interview.",
         remove_background: "Visuals refined. For a truly professional finish, use our /passport_photo tool to prepare this image for any corporate or official use.",
-        passport_photo: "Excellence delivered. Now that your photo is ready, let's make sure your professional summary matches—try our /ai_cv_enhancer.",
+        passport_photo: "Excellence delivered! Your passport photo looks great. To make it absolutely perfect for official embassy or corporate use, would you like to add a professional *White, Blue, or Red* background? For just *3 credits*, we'll ensure it meets every requirement with a studio finish. Give it a try: /apply_background",
         transcribe_audio: "Transcription finalized. For a high-level briefing on these notes, our /summarize tool is just one click away.",
         "Professional Passport Pack": "Your elite passport assets are ready. If you're preparing these for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
         doc_export: "Your document has been professionally formatted and delivered. To ensure your entire career profile is just as polished, try our /ai_cv_enhancer.",

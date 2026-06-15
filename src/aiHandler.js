@@ -116,12 +116,13 @@ module.exports = (bot, shared) => {
         
         // Split message if it's too long for Telegram (max 4096 chars)
         const finalMessage = `*${title}*\n\nFile: _${fileName}_\n\n${aiResponse}`;
+        const userId = ctx.from.id.toString();
         
         if (finalMessage.length > 4000) {
-          await sendMarkdownSafe(ctx, finalMessage.substring(0, 4000));
-          await sendMarkdownSafe(ctx, finalMessage.substring(4000));
+          await sendMarkdownSafe(ctx, finalMessage.substring(0, 4000), userId, true);
+          await sendMarkdownSafe(ctx, finalMessage.substring(4000), userId, true);
         } else {
-          await sendMarkdownSafe(ctx, finalMessage);
+          await sendMarkdownSafe(ctx, finalMessage, userId, true);
         }
 
         return { sent: true, buffer: fileBuffer, aiText: aiResponse, tool: tool };

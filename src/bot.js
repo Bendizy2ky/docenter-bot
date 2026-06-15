@@ -435,43 +435,49 @@ async function startBot() {
   bot.command('passport_pack', (ctx) => {
     const userId = ctx.from.id.toString();
     userState.startWorkflow(userId, 'Professional Passport Pack', {}, ['remove_background', 'passport_photo']);
-    sendMarkdownSafe(ctx, 
+    sendMarkdownSafe(ctx,
       `🗂 *Professional Passport Pack (2 Steps)*\n\n` +
       `Step 1: Background Removal\n` +
       `Step 2: Passport Resizing\n\n` +
-      `📎 Please send your photo to begin Step 1.`
+      `📎 Please send your photo to begin Step 1.`, userId, true
     );
   });
 
   // ── Tool Command Triggers ──────────────────
   bot.command('compress_pdf', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'compress_pdf' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress. (Max 10MB)'));
+    const userId = ctx.from.id.toString();
+    userState.set(userId, { tool: 'compress_pdf' });
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress. (Max 10MB)'), userId, true);
   });
 
   bot.command('pdf_to_word', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'pdf_to_word' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word. (Max 10MB)'));
+    const userId = ctx.from.id.toString();
+    userState.set(userId, { tool: 'pdf_to_word' });
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word. (Max 10MB)'), userId, true);
   });
 
   bot.command('docx_to_pdf', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'docx_to_pdf' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *Word (.docx)* file you want to convert to PDF. (Max 10MB)'));
+    const userId = ctx.from.id.toString();
+    userState.set(userId, { tool: 'docx_to_pdf' });
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *Word (.docx)* file you want to convert to PDF. (Max 10MB)'), userId, true);
   });
 
   bot.command('transcribe', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'transcribe_audio' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe. (Max 10MB)'));
+    const userId = ctx.from.id.toString();
+    userState.set(userId, { tool: 'transcribe_audio' });
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe. (Max 10MB)'), userId, true);
   });
 
   bot.command(['apply_background', 'applybackground'], (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'apply_background' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for.'));
+    const userId = ctx.from.id.toString();
+    userState.set(userId, { tool: 'apply_background' });
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for.'), userId, true);
   });
 
   bot.command(['convert_image', 'convertimage'], (ctx) => {
-    userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.image + '\n\nChoose an output format above to begin.');
+    const userId = ctx.from.id.toString();
+    userState.delete(userId);
+    sendMarkdownSafe(ctx, menus.image + '\n\nChoose an output format above to begin.', userId, true);
   });
 
   // ── Admin Commands ──────────────────────────
@@ -777,7 +783,7 @@ async function startBot() {
     const userId = ctx.from.id.toString();
     const pack   = CREDIT_PACKS[packKey];
 
-    await sendMarkdownSafe(ctx, `⏳ Generating payment link for *${pack.name} Pack*...`, userId);
+    await sendMarkdownSafe(ctx, `⏳ Generating payment link for *${pack.name} Pack*...`, userId, true);
 
     const result = await generatePaymentLink(userId, packKey);
 
@@ -785,10 +791,11 @@ async function startBot() {
       return ctx.reply('⚠️ Could not generate payment link. Please try again.');
     }
 
-    await sendMarkdownSafe(ctx, `💳 *${pack.name} Pack — ₦${pack.price.toLocaleString()}*\n`, userId, true) +
+    await sendMarkdownSafe(ctx,
+      `💳 *${pack.name} Pack — ₦${pack.price.toLocaleString()}*\n` +
       `You will receive *${pack.credits} credits*.\n\n` +
-      `👉 [Tap here to pay securely](${result.paymentUrl})\n\n` +
-      `_Credits are added automatically after payment._`);
+      `👉 Tap here to pay securely\n\n` +
+      `_Credits are added automatically after payment._`, userId, true);
   }
 
   bot.command('buy_starter',  (ctx) => handleBuyPack(ctx, 'starter'));
