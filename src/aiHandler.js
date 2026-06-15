@@ -2,6 +2,16 @@ const axios = require('axios');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 
+// Hugging Face models to try in order
+// All are free on HF inference API
+const HF_MODELS = [
+  'stabilityai/stable-diffusion-xl-base-1.0',
+  'runwayml/stable-diffusion-v1-5',
+  'CompVis/stable-diffusion-v1-4'
+];
+
+const HF_API_BASE = 'https://api-inference.huggingface.co/models';
+
 module.exports = (bot, shared) => {
   const { TOOL_COSTS, menus, userState, sendMarkdownSafe } = shared;
 
@@ -66,9 +76,10 @@ module.exports = (bot, shared) => {
     }
 
     const processingMsg = await ctx.reply(
-      '🎨 Generating your image...\n' +
-      '⏳ This usually takes 15–45 seconds to render.\n' +
-      'Please wait...'
+      '🎨 Generating your image...\n\n' +
+      '⏳ This takes 30–90 seconds on free tier.\n' +
+      'Please be patient — good things take time! 🙏\n\n' +
+      '_Do not send another message while generating._'
     );
 
     try {
@@ -92,7 +103,7 @@ module.exports = (bot, shared) => {
         await ctx.reply('⚠️ Processing failed or file could not be delivered. No credits were deducted.');
       }
     } catch (error) {
-      console.error('Pollinations AI error:', error.message);
+      console.error('AI Image Generation error:', error.message);
       await sendMarkdownSafe(ctx, '⚠️ Failed to generate image. Please try a different description or try again later.');
     } finally {
       await deleteProcessingMessage(ctx, processingMsg.message_id);
@@ -100,117 +111,131 @@ module.exports = (bot, shared) => {
     }
   });
 
-  async function generateImageWithPollinations(prompt, model = 'turbo') {
+  /**
+   * Generate image using Hugging Face Inference API
+   * Free tier, works from server IP addresses
+   */
+  async function generateImageWithHuggingFace(prompt, modelIndex = 0) {
+    const model = HF_MODELS[modelIndex];
+    const apiKey = process.env.HUGGINGFACE_API_KEY;
+    
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'Image generation is not configured. Please contact support.'
+      };
+    }
+    
     try {
-      let cleanPrompt = prompt.trim().replace(/[^\w\s,.-]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (!cleanPrompt || cleanPrompt.length < 3) {
-        return { success: false, error: 'Prompt is too short. Please describe the image you want.' };
-      }
+      console.log(`[Image Gen] Trying HF model: ${model}`);
+      console.log(`[Image Gen] Prompt length: ${prompt.length} chars`);
       
-      if (cleanPrompt.length > 500) {
-        console.log(`[Image Gen] Prompt truncated from ${cleanPrompt.length} to 500 chars`);
-        cleanPrompt = cleanPrompt.slice(0, 497) + '...';
-      }
-
-      const encodedPrompt = encodeURIComponent(cleanPrompt);
-      const timeout = parseInt(process.env.IMAGE_GEN_TIMEOUT_MS) || 90000;
-      const modelParam = model ? `&model=${model}` : '';
-
-      const imageUrl = [
-        'https://image.pollinations.ai/prompt/',
-        encodedPrompt,
-        `?width=1024&height=1024`,
-        modelParam,
-        '&nologo=true',
-        `&seed=${Math.floor(Math.random() * 999999)}`
-      ].join('');
-
-      console.log(`[Image Gen] Requesting: ${imageUrl}`);
+      const cleanPrompt = prompt.trim().replace(/\s+/g, ' ').slice(0, 500);
       
-      const response = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
-        timeout: timeout,
-        headers: {
-          'Accept': 'image/jpeg,image/png,image/webp,image/*',
-          'User-Agent': 'Mozilla/5.0 DocCenterBot/1.0'
+      const response = await axios.post(
+        `${HF_API_BASE}/${model}`,
+        {
+          inputs: cleanPrompt,
+          parameters: {
+            width: 512,
+            height: 512,
+            num_inference_steps: 20,
+            guidance_scale: 7.5,
+            negative_prompt: 'blurry, bad quality, distorted, ugly'
+          },
+          options: {
+            wait_for_model: true,
+            use_cache: false
+          }
         },
-        maxRedirects: 5
-      });
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'Accept': 'image/jpeg,image/png,image/*'
+          },
+          responseType: 'arraybuffer',
+          timeout: 120000
+        }
+      );
       
       const contentType = response.headers['content-type'] || '';
-      console.log(`[Image Gen] Response content-type: ${contentType}`);
+      console.log(`[Image Gen] Response type: ${contentType}`);
       
       if (!contentType.includes('image')) {
-        const preview = Buffer.from(response.data).toString('utf8').slice(0, 200);
-        console.error(`[Image Gen] Got non-image response: ${preview}`);
-        return { success: false, error: 'Image generation service is temporarily busy. Please try again in a moment.' };
+        const errorText = Buffer.from(response.data).toString('utf8');
+        console.error(`[Image Gen] Non-image response: ${errorText.slice(0, 200)}`);
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error && errorJson.error.includes('loading')) {
+            return { success: false, errorCode: 503, error: 'Model is loading', isLoading: true };
+          }
+        } catch (e) {}
+        
+        return { success: false, errorCode: response.status, error: 'Received invalid response from image service' };
       }
       
       const imageBuffer = Buffer.from(response.data);
-      console.log(`[Image Gen] Success. Buffer size: ${imageBuffer.length} bytes`);
+      console.log(`[Image Gen] Success! Buffer: ${imageBuffer.length} bytes`);
       
-      return { success: true, buffer: imageBuffer, contentType: contentType, prompt: cleanPrompt };
+      return { success: true, buffer: imageBuffer, contentType: contentType, model: model, prompt: cleanPrompt };
+      
     } catch (error) {
-      const statusCode = error.response?.status || 0;
+      const status = error.response?.status || 0;
+      console.error(`[Image Gen] HF Error (${status}):`, error.message);
       
-      if (statusCode === 402) {
-        console.log(`[Image Gen] Model requires payment (402)`);
-        return {
-          success: false,
-          errorCode: 402,
-          error: 'This model requires payment'
-        };
+      if (status === 503) {
+        return { success: false, errorCode: 503, isLoading: true, error: 'Model is warming up' };
+      }
+      
+      if (status === 429) {
+        return { success: false, errorCode: 429, error: 'Too many requests. Please wait a moment and try again.' };
       }
       
       if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        return {
-          success: false,
-          errorCode: 408,
-          error: 'Image generation timed out. Please try again.'
-        };
+        return { success: false, errorCode: 408, error: 'Image generation timed out. Please try again.' };
       }
       
-      console.error('[Image Gen] Error:', error.message);
-      return {
-        success: false,
-        errorCode: statusCode,
-        error: 'Could not generate image. Please try again.'
-      };
+      return { success: false, errorCode: status, error: 'Image generation failed. Please try again.' };
     }
   }
 
+  /**
+   * Main retry wrapper that tries multiple models
+   * and handles model loading state
+   */
   async function generateImageWithRetry(prompt) {
-    const FREE_MODELS = ['turbo', 'flux-schnell', ''];
-    
-    for (let modelIndex = 0; modelIndex < FREE_MODELS.length; modelIndex++) {
-      const model = FREE_MODELS[modelIndex];
-      console.log(`[Image Gen] Trying model: ${model || 'default'}`);
+    for (let i = 0; i < HF_MODELS.length; i++) {
+      console.log(`[Image Gen] Attempting model ${i + 1} of ${HF_MODELS.length}`);
       
-      const result = await generateImageWithPollinations(prompt, model);
+      let result = await generateImageWithHuggingFace(prompt, i);
+      
+      if (result.isLoading) {
+        console.log('[Image Gen] Model loading. Waiting 20 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 20000));
+        result = await generateImageWithHuggingFace(prompt, i);
+      }
       
       if (result.success) {
-        console.log(`[Image Gen] Success with model: ${model || 'default'}`);
+        console.log(`[Image Gen] Generated with model: ${HF_MODELS[i]}`);
         return result;
       }
       
-      if (result.errorCode === 402) {
-        console.log(`[Image Gen] Model "${model}" requires payment. Trying next free model...`);
-        continue;
+      if (result.errorCode === 429) {
+        return { success: false, error: '⚠️ Too many image requests right now.\nPlease wait 1 minute and try again.' };
       }
       
-      if (modelIndex === 0) {
-        console.log(`[Image Gen] Non-payment error. Retrying in 5 seconds...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        const retry = await generateImageWithPollinations(prompt, model);
-        if (retry.success) return retry;
-      }
+      console.log(`[Image Gen] Model ${i + 1} failed. Trying next model...`);
       
-      break;
+      if (i < HF_MODELS.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
     }
     
     return {
       success: false,
-      error: 'Image generation is currently unavailable. Please try again later.'
+      error: '⚠️ Image generation is currently unavailable.\nThe free service may be overloaded.\nPlease try again in a few minutes.'
     };
   }
 
