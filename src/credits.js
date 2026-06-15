@@ -110,37 +110,36 @@ async function getCredits(userId) {
 }
 
 // Adds amount to user's balance and returns new balance
-async function addCredits(userId, amount) {
-  try {
+/**
+ * Atomic Credit Operation
+ * Prevents race conditions by using the writeQueue for the entire Read-Modify-Write cycle.
+ */
+async function atomicUpdate(userId, updateFn) {
     const id = String(userId);
-    const all = loadCredits();
-    await _ensureUserObject(all, id);
-    const prev = Number(all[id].credits || 0);
-    const next = prev + Number(amount || 0);
-    all[id].credits = next;
-    await saveCredits(all);
-    return next;
-  } catch (e) {
-    console.error('addCredits error:', e && e.message);
-    return null;
-  }
+    return writeQueue = writeQueue.then(async () => {
+        const all = loadCredits();
+        await _ensureUserObject(all, id);
+        const result = updateFn(all[id]);
+        await fs.promises.writeFile(FILE, JSON.stringify(all, null, 2), 'utf8');
+        creditsCache = all;
+        return result;
+    });
 }
 
-// Deducts amount (never below 0) and returns new balance
+async function addCredits(userId, amount) {
+    return atomicUpdate(userId, (user) => {
+        user.credits += Number(amount);
+        return user.credits;
+    });
+}
+
 async function deductCredits(userId, amount) {
-  try {
-    const id = String(userId);
-    const all = loadCredits();
-    await _ensureUserObject(all, id);
-    const prev = Number(all[id].credits || 0);
-    const next = Math.max(0, prev - Number(amount || 0));
-    all[id].credits = next;
-    await saveCredits(all);
-    return next;
-  } catch (e) {
-    console.error('deductCredits error:', e && e.message);
-    return null;
-  }
+    return atomicUpdate(userId, (user) => {
+        const cost = Number(amount);
+        if (user.credits < cost) throw new Error("Insufficient credits");
+        user.credits -= cost;
+        return user.credits;
+    });
 }
 
 /**

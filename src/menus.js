@@ -95,6 +95,7 @@ Choose an AI-powered tool:
 
 1️⃣ /summarize — AI Document Summary (5 credits)
 2️⃣ /cv_enhance — Professional CV Enhancement (10 credits)
+3️⃣ /generate_image — AI Image Generator (Coming Soon)
 
 💡 Each tool costs credits.
 Type /credits to buy credits.
@@ -111,7 +112,6 @@ Choose a tool:
 3️⃣ /apply_background — Replace with white/red/blue background (3 credits)
 4️⃣ /passport_photo — Make a passport photo (3 credits)
 5️⃣ /convert_image — Convert image formats (jpg ↔ png, webp) (1 credit)
-6️⃣ /generate_image — AI Image Generator (Coming Soon)
 
 💡 Each tool costs credits.
 Type /credits to buy credits.

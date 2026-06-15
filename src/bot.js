@@ -1005,14 +1005,14 @@ async function startBot() {
       
       // AI & Professional Tools Re-routing
       if (cmd === 'generate_image' || cmd === 'generateimage') {
-        return ctx.replyWithMarkdown(
+        return sendMarkdownSafe(ctx,
           '🎨 *AI Image Generator*\n\n' +
           '⚙️ This feature is currently being upgraded ' +
           'for better quality and speed.\n\n' +
           'It will be available very soon!\n\n' +
           'In the meantime try our other AI tools:\n' +
-          '/ai\\_summarise — Summarise any document\n' +
-          '/ai\\_cv\\_enhancer — Improve your CV\n\n' +
+          '/ai_summarise — Summarise any document\n' +
+          '/ai_cv_enhancer — Improve your CV\n\n' +
           '_No credits deducted._'
         );
       }
