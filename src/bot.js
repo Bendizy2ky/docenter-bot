@@ -885,8 +885,16 @@ async function startBot() {
       
       // AI & Professional Tools Re-routing
       if (cmd === 'generate_image' || cmd === 'generateimage') {
-        userState.set(userId, { tool: 'ai_image_generator' });
-        return sendMarkdownSafe(ctx, "🎨 *AI Image Generator*\n\nDescribe the image you want to create.\n\nCost: 2 credits.");
+        return ctx.replyWithMarkdown(
+          '🎨 *AI Image Generator*\n\n' +
+          '⚙️ This feature is currently being upgraded ' +
+          'for better quality and speed.\n\n' +
+          'It will be available very soon!\n\n' +
+          'In the meantime try our other AI tools:\n' +
+          '/ai\\_summarise — Summarise any document\n' +
+          '/ai\\_cv\\_enhancer — Improve your CV\n\n' +
+          '_No credits deducted._'
+        );
       }
       if (cmd === 'photo_fix' || cmd === 'photofix') {
         userState.set(userId, { tool: 'photo_fix' });
@@ -896,11 +904,11 @@ async function startBot() {
         userState.set(userId, { tool: 'transcribe_audio' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe.'));
       }
-      if (cmd === 'summarize') {
+      if (cmd === 'summarize' || cmd === 'ai_summarise' || cmd === 'ai_summarize') {
         userState.set(userId, { tool: 'ai_summarize' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *document* you want me to summarize.'));
       }
-      if (cmd === 'cv_enhance' || cmd === 'cvenhance') {
+      if (cmd === 'cv_enhance' || cmd === 'cvenhance' || cmd === 'ai_cv_enhancer') {
         userState.set(userId, { tool: 'cv_enhance' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Send your *CV (PDF or Word)* for enhancement.'));
       }
