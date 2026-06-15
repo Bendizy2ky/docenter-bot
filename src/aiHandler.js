@@ -49,8 +49,8 @@ module.exports = (bot, shared) => {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const seed = Math.floor(Math.random() * 1000000);
-          // Senior Fix: Use the more stable API endpoint and ensure binary output
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
+          // Use the more reliable base endpoint and include the 'model' parameter for better results
+          const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
           
           const response = await axios.get(imageUrl, { 
             responseType: 'arraybuffer', 

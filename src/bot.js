@@ -428,6 +428,16 @@ async function startBot() {
     sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe.'));
   });
 
+  bot.command('apply_background', (ctx) => {
+    userState.set(ctx.from.id.toString(), { tool: 'apply_background' });
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (2 credits)'));
+  });
+
+  bot.command('convert_image', (ctx) => {
+    userState.delete(ctx.from.id.toString());
+    sendMarkdownSafe(ctx, menus.image);
+  });
+
   // ── Admin Commands ──────────────────────────
   bot.command('add_credits', async (ctx) => {
     const adminId = process.env.ADMIN_TELEGRAM_ID;
@@ -788,8 +798,10 @@ async function startBot() {
       // we assume a modular handler is processing this.
       const state = userState.get(userId);
       if (state && state.tool) {
-        // Only allow through if it's an explicit /cancel or /start command
-        if (!msg.text.startsWith('/cancel') && !msg.text.startsWith('/start')) {
+        // Allow through if it's a command, OR if it's the AI Image Generator (which needs the text prompt)
+        const isCommand = msg.text?.startsWith('/');
+        const isAIInput = state.tool === 'ai_image_generator';
+        if (!isCommand && !isAIInput) {
           return; 
         }
       }
@@ -817,7 +829,11 @@ async function startBot() {
         userState.set(userId, { tool: 'passport_photo' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send a *clear, front-facing photo*.\n\n' + menus.passportGuide));
       }
-      if (cmd === 'convert_image') {
+      if (cmd === 'apply_background' || cmd === 'applybackground') {
+        userState.set(userId, { tool: 'apply_background' });
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for.'));
+      }
+      if (cmd === 'convert_image' || cmd === 'convertimage') {
         return sendMarkdownSafe(ctx,
           `🖼 *Image Conversion*\n\nChoose output format:\n• /to_png — Convert to PNG (1 credit)\n• /to_jpg — Convert to JPG (1 credit)\n• /to_webp — Convert to WebP (1 credit)\n\n_Then send your image (photo or file).`
         );
