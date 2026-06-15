@@ -495,7 +495,7 @@ async function startBot() {
   bot.command(['apply_background', 'applybackground'], (ctx) => {
     const userId = ctx.from.id.toString();
     userState.set(userId, { tool: 'apply_background' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for.'), userId, true);
+    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (Max 5MB)'), userId, true);
   });
 
   bot.command(['convert_image', 'convertimage'], (ctx) => {
@@ -848,11 +848,12 @@ async function startBot() {
     const state = userState.get(userId);
     if (!state) return sendMarkdownSafe(ctx, 'Please choose a tool first.\n\nType /pdf for PDF tools or /image for image tools.');
     
-    // --- Proactive File Sensitivity: Tool-Specific Validation ---
-    const fileSize = ctx.message.document?.file_size || 
-                     ctx.message.audio?.file_size || 
-                     ctx.message.voice?.file_size || 
-                     ctx.message.photo?.slice(-1)[0]?.file_size || 0;
+    // --- Proactive File Sensitivity: Metadata Gatekeeping ---
+    const photoArr = ctx.message.photo;
+    const fileSize = ctx.message.document?.file_size ||
+                     ctx.message.audio?.file_size ||
+                     ctx.message.voice?.file_size ||
+                     (photoArr ? photoArr[photoArr.length - 1].file_size : 0) || 0;
     
     let toolLimitMB = 20; // Global fallback
 
@@ -869,7 +870,7 @@ async function startBot() {
     const MAX_SIZE = toolLimitMB * 1024 * 1024;
 
     if (fileSize > MAX_SIZE) {
-      return ctx.reply(`I'm sorry, but this file is a bit too large for this specific task. To ensure high-quality results, please try a smaller file (under ${toolLimitMB}MB).`);
+      return sendMarkdownSafe(ctx, menus.fileTooLarge(toolLimitMB), userId, true);
     }
 
     const cost = TOOL_COSTS[state.tool];

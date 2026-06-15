@@ -193,6 +193,13 @@ Your balance: *${balance} credits*
 Type /credits to top up.
 `,
 
+  // Sent when a file exceeds the tool's size limit
+  fileTooLarge: (limit) => `
+📂 *File size exceeds limit*
+
+This file is slightly larger than our current processing limit of *${limit}MB* for this tool. To ensure the best quality and speed, could you please try a smaller version or a different file?
+`,
+
   premiumMarketer: {
     getSuggestion: (tool) => {
       const suggestions = {
