@@ -8,9 +8,13 @@ require('dotenv').config(); // Load all variables from .env file
 try {
 	const { startBot } = require('./src/bot');
 	const { startServer } = require('./src/server');
+	const { listGroqModels } = require('./src/aiHandler');
 
 	// Start HTTP server (webhooks/callbacks)
 	try { startServer(); } catch (e) { console.error('Failed to start server:', e && e.message); }
+
+	// Diagnostic: Check Groq Capabilities
+	listGroqModels();
 
 	// Start the bot
 	startBot().catch(err => {

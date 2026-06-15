@@ -1,6 +1,7 @@
 const axios = require('axios');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
+const Replicate = require('replicate');
 
 let HttpsProxyAgent;
 try { 
@@ -10,14 +11,6 @@ try {
 }
 const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || null;
 const httpsAgent = proxy && HttpsProxyAgent ? new HttpsProxyAgent(proxy) : undefined;
-
-// Hugging Face models to try in order
-// Optimized HF models for high-quality generation
-const HF_MODELS = [
-  'stabilityai/stable-diffusion-xl-base-1.0',
-  'runwayml/stable-diffusion-v1-5',
-  'CompVis/stable-diffusion-v1-4'
-];
 
 const HF_API_BASE = 'https://api-inference.huggingface.co/models';
 
@@ -121,133 +114,121 @@ module.exports = (bot, shared) => {
   });
 
   /**
-   * Generate image using Hugging Face Inference API
-   * Professional-grade rendering, works from server-optimized IP addresses
+   * Generate image using Replicate API
+   * Stable Diffusion model - High reliability on Railway servers
    */
-  async function generateImageWithHuggingFace(prompt, modelIndex = 0) {
-    const model = HF_MODELS[modelIndex];
-    const apiKey = process.env.HUGGINGFACE_API_KEY;
+  async function generateImageWithReplicate(prompt) {
+    const apiToken = process.env.REPLICATE_API_TOKEN;
     
-    if (!apiKey) {
+    if (!apiToken) {
       return {
         success: false,
-        error: 'Image generation is not configured. Please contact support.'
+        error: 'Image generation is not configured.'
       };
     }
     
     try {
-      console.log(`[Image Gen] Trying HF model: ${model}`);
-      console.log(`[Image Gen] Prompt length: ${prompt.length} chars`);
+      const replicate = new Replicate({
+        auth: apiToken
+      });
       
-      const cleanPrompt = prompt.trim().replace(/\s+/g, ' ').slice(0, 500);
+      const cleanPrompt = prompt
+        .trim()
+        .replace(/\s+/g, ' ')
+        .slice(0, 500);
       
-      const response = await axios.post(
-        `${HF_API_BASE}/${model}`,
+      console.log('[Image Gen] Using Replicate API');
+      console.log(`[Image Gen] Prompt: ${cleanPrompt.slice(0, 100)}...`);
+      
+      // Use stable-diffusion model on Replicate
+      const output = await replicate.run(
+        'stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf',
         {
-          inputs: cleanPrompt,
-          parameters: {
+          input: {
+            prompt: cleanPrompt,
             width: 512,
             height: 512,
+            num_outputs: 1,
             num_inference_steps: 20,
             guidance_scale: 7.5,
             negative_prompt: 'blurry, bad quality, distorted, ugly'
-          },
-          options: {
-            wait_for_model: true,
-            use_cache: false
           }
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'image/jpeg,image/png,image/*'
-          },
-          responseType: 'arraybuffer',
-          timeout: 120000,
-          httpsAgent: httpsAgent,
-          proxy: false, // Ensure httpsAgent is used if proxy is set
-          family: 4     // Force IPv4 to resolve DNS ENOTFOUND issues
         }
       );
       
-      const contentType = response.headers['content-type'] || '';
-      console.log(`[Image Gen] Response type: ${contentType}`);
+      if (!output || !output[0]) {
+        return {
+          success: false,
+          error: 'No image was generated. Please try again.'
+        };
+      }
+      
+      const imageUrl = output[0];
+      console.log(`[Image Gen] Replicate returned URL: ${imageUrl}`);
+      
+      // Download the image from the returned URL
+      const imageResponse = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+        httpsAgent: httpsAgent
+      });
+      
+      const contentType = imageResponse.headers['content-type'] || '';
       
       if (!contentType.includes('image')) {
-        const errorText = Buffer.from(response.data).toString('utf8');
-        console.error(`[Image Gen] Non-image response: ${errorText.slice(0, 200)}`);
-        
-        try {
-          const errorJson = JSON.parse(errorText);
-          if (errorJson.error && errorJson.error.includes('loading')) {
-            return { success: false, errorCode: 503, error: 'Model is loading', isLoading: true };
-          }
-        } catch (e) {}
-        
-        return { success: false, errorCode: response.status, error: 'Received invalid response from image service' };
+        return {
+          success: false,
+          error: 'Generated file was not a valid image.'
+        };
       }
       
-      const imageBuffer = Buffer.from(response.data);
+      const imageBuffer = Buffer.from(imageResponse.data);
       console.log(`[Image Gen] Success! Buffer: ${imageBuffer.length} bytes`);
       
-      return { success: true, buffer: imageBuffer, contentType: contentType, model: model, prompt: cleanPrompt };
+      return { 
+        success: true, 
+        buffer: imageBuffer, 
+        contentType: contentType, 
+        prompt: cleanPrompt 
+      };
       
     } catch (error) {
-      const status = error.response?.status || 0;
-      console.error(`[Image Gen] HF Error (${status}):`, error.message);
+      console.error('[Image Gen] Replicate error:', error.message);
       
-      if (status === 503) {
-        return { success: false, errorCode: 503, isLoading: true, error: 'Model is warming up' };
+      if (error.message.includes('timeout')) {
+        return {
+          success: false,
+          error: 'Image generation timed out. Please try again.'
+        };
       }
       
-      if (status === 429) {
-        return { success: false, errorCode: 429, error: 'Too many requests. Please wait a moment and try again.' };
+      if (error.response?.status === 402) {
+        return {
+          success: false,
+          error: 'Image generation credits exhausted.'
+        };
       }
       
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        return { success: false, errorCode: 408, error: 'Image generation timed out. Please try again.' };
-      }
-      
-      return { success: false, errorCode: status, error: 'Image generation failed. Please try again.' };
+      return { 
+        success: false, 
+        error: 'Image generation failed. Please try again.' 
+      };
     }
   }
 
   /**
-   * Main retry wrapper that tries multiple models
-   * and handles model loading state
+   * Main retry wrapper that tries Replicate
    */
   async function generateImageWithRetry(prompt) {
-    for (let i = 0; i < HF_MODELS.length; i++) {
-      console.log(`[Image Gen] Attempting model ${i + 1} of ${HF_MODELS.length}`);
-      
-      let result = await generateImageWithHuggingFace(prompt, i);
-      
-      if (result.isLoading) {
-        console.log('[Image Gen] Model loading. Waiting 20 seconds...');
-        await new Promise(resolve => setTimeout(resolve, 20000));
-        result = await generateImageWithHuggingFace(prompt, i);
-      }
-      
-      if (result.success) {
-        console.log(`[Image Gen] Generated with model: ${HF_MODELS[i]}`);
-        return result;
-      }
-      
-      if (result.errorCode === 429) {
-        return { success: false, error: '⚠️ Too many image requests right now.\nPlease wait 1 minute and try again.' };
-      }
-      
-      console.log(`[Image Gen] Model ${i + 1} failed. Trying next model...`);
-      
-      if (i < HF_MODELS.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-    }
+    // Try Replicate
+    console.log('[Image Gen] Trying Replicate...');
+    const result = await generateImageWithReplicate(prompt);
+    if (result.success) return result;
+    console.log('[Image Gen] Replicate failed:', result.error);
     
     return {
       success: false,
-      error: '⚠️ Image generation is currently unavailable.\nOur rendering servers are currently at peak capacity.\nPlease try again in a few minutes.'
+      error: '⚠️ Image generation is temporarily unavailable.\nOur rendering servers are currently being updated.\nPlease try again in a few minutes.'
     };
   }
 
@@ -341,4 +322,24 @@ module.exports = (bot, shared) => {
       }
     }
   };
+};
+
+/**
+ * Diagnostic function to list Groq models
+ */
+module.exports.listGroqModels = async function() {
+  try {
+    const response = await axios.get(
+      'https://api.groq.com/openai/v1/models',
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
+        }
+      }
+    );
+    const models = response.data.data.map(m => m.id);
+    console.log('[Groq Models Info]\n' + models.join('\n'));
+  } catch (err) {
+    console.error('[Groq Diagnostic Error]', err.message);
+  }
 };
