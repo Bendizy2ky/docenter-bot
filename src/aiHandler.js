@@ -2,8 +2,17 @@ const axios = require('axios');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 
+let HttpsProxyAgent;
+try { 
+  HttpsProxyAgent = require('https-proxy-agent'); 
+} catch (e) { 
+  // Fallback if not installed
+}
+const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || null;
+const httpsAgent = proxy && HttpsProxyAgent ? new HttpsProxyAgent(proxy) : undefined;
+
 // Hugging Face models to try in order
-// All are free on HF inference API
+// Optimized HF models for high-quality generation
 const HF_MODELS = [
   'stabilityai/stable-diffusion-xl-base-1.0',
   'runwayml/stable-diffusion-v1-5',
@@ -42,7 +51,7 @@ module.exports = (bot, shared) => {
       "✅ Mention background and colours\n" +
       "❌ Avoid very short prompts like 'a car'\n\n" +
       "Cost: 2 credits\n" +
-      "⏳ Takes 15–45 seconds\n\n" +
+      "⏳ Takes 30–90 seconds\n\n" +
       "*Type your image description now:*";
 
     sendMarkdownSafe(ctx, guidance);
@@ -77,7 +86,7 @@ module.exports = (bot, shared) => {
 
     const processingMsg = await ctx.reply(
       '🎨 Generating your image...\n\n' +
-      '⏳ This takes 30–90 seconds on free tier.\n' +
+      '⏳ High-quality rendering takes 30–90 seconds.\n' +
       'Please be patient — good things take time! 🙏\n\n' +
       '_Do not send another message while generating._'
     );
@@ -113,7 +122,7 @@ module.exports = (bot, shared) => {
 
   /**
    * Generate image using Hugging Face Inference API
-   * Free tier, works from server IP addresses
+   * Professional-grade rendering, works from server-optimized IP addresses
    */
   async function generateImageWithHuggingFace(prompt, modelIndex = 0) {
     const model = HF_MODELS[modelIndex];
@@ -155,7 +164,10 @@ module.exports = (bot, shared) => {
             'Accept': 'image/jpeg,image/png,image/*'
           },
           responseType: 'arraybuffer',
-          timeout: 120000
+          timeout: 120000,
+          httpsAgent: httpsAgent,
+          proxy: false, // Ensure httpsAgent is used if proxy is set
+          family: 4     // Force IPv4 to resolve DNS ENOTFOUND issues
         }
       );
       
@@ -235,7 +247,7 @@ module.exports = (bot, shared) => {
     
     return {
       success: false,
-      error: '⚠️ Image generation is currently unavailable.\nThe free service may be overloaded.\nPlease try again in a few minutes.'
+      error: '⚠️ Image generation is currently unavailable.\nOur rendering servers are currently at peak capacity.\nPlease try again in a few minutes.'
     };
   }
 

@@ -641,6 +641,38 @@ async function startBot() {
       await send(`❌ HTTP HEAD to https://api.assemblyai.com failed: ${e.message}`);
     }
 
+    // Additional checks for Hugging Face
+    await send('\n🔎 Running network diagnostics for Hugging Face (api-inference.huggingface.co)...');
+    try {
+      const hfAddrs = await dnsPromises.resolve4('api-inference.huggingface.co');
+      await send(`✅ System DNS resolved api-inference.huggingface.co -> ${hfAddrs.join(', ')}`);
+    } catch (e) {
+      await send(`❌ System DNS failed to resolve api-inference.huggingface.co: ${e.message}`);
+    }
+
+    try {
+      dns.setServers(['8.8.8.8', '1.1.1.1']);
+      const hfAddrsPublic = await dnsPromises.resolve4('api-inference.huggingface.co');
+      await send(`✅ Public DNS resolved api-inference.huggingface.co -> ${hfAddrsPublic.join(', ')}`);
+    } catch (e) {
+      await send(`❌ Public DNS failed to resolve api-inference.huggingface.co: ${e.message}`);
+    } finally {
+      dns.setServers(origServers);
+    }
+
+    try {
+      const hfCf = await axios.get('https://cloudflare-dns.com/dns-query', {
+        params: { name: 'api-inference.huggingface.co', type: 'A' },
+        headers: { Accept: 'application/dns-json' },
+        timeout: 8000,
+      });
+      const hfAnswers = hfCf.data?.Answer || [];
+      if (hfAnswers.length) await send(`✅ Cloudflare DoH resolved api-inference.huggingface.co -> ${hfAnswers.map(a => a.data).join(', ')}`);
+      else await send('❌ Cloudflare DoH returned no answers for api-inference.huggingface.co');
+    } catch (e) {
+      await send(`❌ Cloudflare DoH failed for Hugging Face: ${e.message}`);
+    }
+
     // 4) Show proxy env vars
     await send(`Proxy env: HTTP_PROXY=${process.env.HTTP_PROXY || ''} HTTPS_PROXY=${process.env.HTTPS_PROXY || ''}`);
 

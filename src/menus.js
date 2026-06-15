@@ -48,7 +48,7 @@ Choose a tool:
 3️⃣ /apply_background — Replace with white/red/blue background (3 credits)
 4️⃣ /passport_photo — Make a passport photo (3 credits)
 5️⃣ /convert_image — Convert image formats (jpg ↔ png, webp) (1 credit)
-6️⃣ /generate_image — Create image from text prompt (5 credits)
+6️⃣ /generate_image — Create image from text prompt (2 credits)
 
 💡 Each tool costs credits.
 Type /credits to buy credits.
@@ -94,7 +94,7 @@ Credits never expire. Pay once, use anytime.
 • PDF to Word — 2 Credits
 • Remove Background — 2 Credits
 • Passport Photo — 3 Credits
-• AI Image Generation — 5 Credits
+• AI Image Generation — 2 Credits
 • Transcription (audio) — 5 Credits
 `,
 
