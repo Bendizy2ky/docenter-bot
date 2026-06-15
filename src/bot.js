@@ -72,24 +72,29 @@ const userLastRequests = new Map();
 
 const BOT_USERNAME = process.env.BOT_USERNAME || 'DocCenterBot';
 
-// Safely send Markdown text while escaping underscores and brackets (which break Markdown v1)
+// Safely escape Markdown characters while preserving commands
+function escapeMarkdown(text) {
+  let s = String(text);
+  // Protect slash-commands so they remain clickable (e.g. /compress_image)
+  const placeholders = [];
+  s = s.replace(/\/[A-Za-z0-9_@]+/g, (m) => {
+    const key = `@@CMD${placeholders.length}@@`;
+    placeholders.push(m);
+    return key;
+  });
+  // Escape remaining problematic Markdown chars
+  let safe = s.replace(/([_\[\]])/g, '\\$1');
+  // Restore commands
+  placeholders.forEach((cmd, i) => {
+    safe = safe.replace(`@@CMD${i}@@`, cmd);
+  });
+  return safe;
+}
+
+// Safely send Markdown text
 async function sendMarkdownSafe(ctx, text) {
   try {
-    let s = String(text);
-    // Protect slash-commands so they remain clickable (e.g. /compress_image)
-    const placeholders = [];
-    s = s.replace(/\/[A-Za-z0-9_@]+/g, (m) => {
-      const key = `@@CMD${placeholders.length}@@`;
-      placeholders.push(m);
-      return key;
-    });
-    // Escape remaining problematic Markdown chars
-    let safe = s.replace(/([_\[\]])/g, '\\$1');
-    // Restore commands
-    placeholders.forEach((cmd, i) => {
-      safe = safe.replace(`@@CMD${i}@@`, cmd);
-    });
-    return await ctx.reply(safe, { parse_mode: 'Markdown' });
+    return await ctx.reply(escapeMarkdown(text), { parse_mode: 'Markdown' });
   } catch (e) {
     // Fallback: send as plain text
     try { return await ctx.reply(String(text)); } catch (er) { console.error('Failed to send message:', er); }
@@ -345,7 +350,7 @@ async function startBot() {
     if (adminId && ctx.from.id.toString() === adminId.toString()) {
       welcomeText += '\n\n⚙️ Admin: /diagnose — Run network diagnostics';
     }
-    sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n💳 Your credits: *${await getCredits(userId)}*`);
+    sendMarkdownSafe(ctx, welcomeText + referralLine + `\n\n────────────────────\n💳 *Account Balance:* ${await getCredits(userId)} credits`);
   });
 
   // ── /cancel ─────────────────────────────────
@@ -370,6 +375,12 @@ async function startBot() {
   bot.command('pdf', (ctx) => {
     userState.delete(ctx.from.id.toString());
     sendMarkdownSafe(ctx, menus.pdf);
+  });
+
+  // ── /ai ─────────────────────────────────────
+  bot.command('ai', (ctx) => {
+    userState.delete(ctx.from.id.toString());
+    sendMarkdownSafe(ctx, menus.ai);
   });
 
   // Audio tools
@@ -841,7 +852,7 @@ async function startBot() {
                 ]]
               }
             };
-            await ctx.reply(menus.success(state.tool, finalBalance), { parse_mode: 'Markdown', ...extra });
+            await ctx.reply(escapeMarkdown(menus.success(state.tool, finalBalance)), { parse_mode: 'Markdown', ...extra });
           } else {
             await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance));
           }
@@ -1006,6 +1017,7 @@ async function startBot() {
       // Re-route top-level menu clicks
       if (cmd === 'start') return sendMarkdownSafe(ctx, menus.welcome + `\n💳 Your credits: *${await getCredits(userId)}*`);
       if (cmd === 'pdf') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.pdf); }
+      if (cmd === 'ai') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.ai); }
       if (cmd === 'image') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.image); }
       if (cmd === 'audio') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.audio); }
       if (cmd === 'credits') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.credits); }

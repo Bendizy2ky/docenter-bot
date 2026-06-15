@@ -7,20 +7,25 @@
 
 const menus = {
 
-  // Sent when user first messages the bot or types /start
   welcome: `
-👋 Welcome to *DocCenter* — Your Digital Business Center!
+💎 *DocCenter: Your Elite AI-Powered Document Studio*
 
-I can help you process documents and images instantly. Pay in Naira. No account needed.
+Transform your workflow with instant, high-performance tools designed for excellence. From professional AI analysis to studio-quality image editing, we deliver results in seconds.
 
-*What do you need?*
+🚀 *The DocCenter Advantage:*
+• ✅ **AI Intelligence:** Summarize docs & rewrite CVs.
+• ✅ **Studio Visuals:** Background removal & Pro photos.
+• ✅ **Seamless Utility:** Compress, convert, & transcribe.
+• ✅ **Frictionless:** Pay in ₦ — No account required.
 
-📄 PDF Tools — /pdf
-🖼 Image Tools — /image
-🔊 Audio Tools — /audio
-📦 Photo Packs — /packs
-� Buy Credits — /credits
-❓ Help — /help
+*Select a category to begin:*
+🤖 **AI Features** — /ai
+📄 **Document Suite** — /pdf
+🖼 **Image Studio** — /image
+🎙 **Audio Hub** — /audio
+📦 **Premium Packs** — /packs
+💳 **Get Credits** — /credits
+❓ **Support** — /help
 `,
 
   // Sent when user types /pdf
@@ -32,8 +37,19 @@ Choose a tool:
   1️⃣ /compress_pdf — Shrink your PDF file size (1 credit)
   2️⃣ /pdf_to_word — Convert PDF to Word document (2 credits)
   3️⃣ /docx_to_pdf — Convert Word (.docx) to PDF (2 credits)
-  4️⃣ /summarize — AI Document Summary (5 credits)
-  5️⃣ /cv_enhance — Professional CV Enhancement (10 credits)
+
+💡 Each tool costs credits.
+Type /credits to buy credits.
+`,
+
+  // Sent when user types /ai
+  ai: `
+🤖 *AI Features*
+
+Choose an AI-powered tool:
+
+1️⃣ /summarize — AI Document Summary (5 credits)
+2️⃣ /cv_enhance — Professional CV Enhancement (10 credits)
 
 💡 Each tool costs credits.
 Type /credits to buy credits.
@@ -134,14 +150,14 @@ Type /credits to top up.
   premiumMarketer: {
     getSuggestion: (tool) => {
       const suggestions = {
-        ai_summarize: "Your insights are ready. Would you like me to generate a professionally formatted document of this summary? (3 credits)\n\nAlternatively, ensure your own professional profile is as sharp as this summary—our /ai_cv_enhancer is the perfect next step.",
-        cv_enhance: "That's a world-class resume! To complete your elite presentation, I can generate a move-ready Word or PDF version for you. (3 credits)\n\nAlso, our /passport_photo tool ensures your application image is just as high-impact.",
+        ai_summarize: "Your insights are ready. Would you like me to generate a professionally formatted document of this summary? (3 credits)\n\nAlternatively, ensure your own professional profile is as sharp as this summary—our /ai\\_cv\\_enhancer is the perfect next step.",
+        cv_enhance: "That's a world-class resume! To complete your elite presentation, I can generate a move-ready Word or PDF version for you. (3 credits)\n\nAlso, our /passport\\_photo tool ensures your application image is just as high-impact.",
         compress_pdf: "Optimization complete. If you need to dive deeper into this document, our /summarize tool can provide an executive overview in seconds.",
-        pdf_to_word: "Seamlessly converted. If this document is part of a career move, our /ai_cv_enhancer is ready to help you land that interview.",
-        remove_background: "Visuals refined. For a truly professional finish, use our /passport_photo tool to prepare this image for any corporate or official use.",
-        passport_photo: "Excellence delivered. Now that your photo is ready, let's make sure your professional summary matches—try our /ai_cv_enhancer.",
+        pdf_to_word: "Seamlessly converted. If this document is part of a career move, our /ai\\_cv\\_enhancer is ready to help you land that interview.",
+        remove_background: "Visuals refined. For a truly professional finish, use our /passport\\_photo tool to prepare this image for any corporate or official use.",
+        passport_photo: "Excellence delivered. Now that your photo is ready, let's make sure your professional summary matches—try our /ai\\_cv\\_enhancer.",
         transcribe_audio: "Transcription finalized. For a high-level briefing on these notes, our /summarize tool is just one click away.",
-        "Professional Passport Pack": "Your elite passport assets are ready. If you're preparing these for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
+        "Professional Passport Pack": "Your elite passport assets are ready. If you're preparing these for an application, ensure your CV is equally impressive with our /ai\\_cv\\_enhancer.",
         default: "Precision processing complete. Our elite suite of AI tools is designed to keep you ahead—type /start to explore our premium services."
       };
       return suggestions[tool] || suggestions.default;
