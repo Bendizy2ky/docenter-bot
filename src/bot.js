@@ -56,6 +56,52 @@ const TOOL_COSTS = {
 };
 
 // ─────────────────────────────────────────────
+// Strict Type Guard: Allowed MIME Types per Tool
+// ─────────────────────────────────────────────
+const ALLOWED_MIMES = {
+  ai_summarize:       ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  cv_enhance:         ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  compress_pdf:       ['application/pdf'],
+  pdf_to_word:        ['application/pdf'],
+  docx_to_pdf:        ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  transcribe_audio:   ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/mp3', 'audio/mp4', 'audio/vnd.dlna.adts', 'audio/x-m4a'],
+  compress_image:     ['image/jpeg', 'image/png', 'image/webp'],
+  remove_background:  ['image/jpeg', 'image/png', 'image/webp'],
+  apply_background:   ['image/jpeg', 'image/png', 'image/webp'],
+  passport_photo:     ['image/jpeg', 'image/png', 'image/webp'],
+  convert_image:      ['image/jpeg', 'image/png', 'image/webp'],
+  photo_fix:          ['image/jpeg', 'image/png', 'image/webp'],
+  document_photo_pack:['image/jpeg', 'image/png', 'image/webp'],
+  apply_background:   ['image/jpeg', 'image/png', 'image/webp']
+};
+
+/**
+ * verifyFileSignature
+ * Performs "Magic Number" validation to ensure file content matches expectations.
+ * Prevents "Metadata Spoofing" (e.g., renaming a virus.exe to document.pdf).
+ */
+function verifyFileSignature(buffer, tool) {
+  if (!buffer || buffer.length < 4) return false;
+
+  const isPdf = buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+  const isZip = buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04; // Used by .docx
+  const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+  const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+  const isWebp = buffer.slice(8, 12).toString('ascii') === 'WEBP';
+
+  if (['compress_pdf', 'pdf_to_word'].includes(tool)) return isPdf;
+  if (tool === 'docx_to_pdf') return isZip;
+  if (['ai_summarize', 'cv_enhance'].includes(tool)) return isPdf || isZip;
+  
+  if (['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'photo_fix', 'apply_background'].includes(tool)) {
+    return isJpeg || isPng || isWebp;
+  }
+
+  // Audio formats vary significantly (MP3/OGG); we rely on MIME for those as they are lower risk
+  return true;
+}
+
+// ─────────────────────────────────────────────
 // Persistent Credit Storage
 // Uses src/credits.js to persist balances to credits.json
 // ─────────────────────────────────────────────
@@ -877,6 +923,32 @@ async function startBot() {
     const balance = await getCredits(userId);
     if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance), userId, true);
 
+    // --- Strict Type Guard: Format Validation ---
+    const mimeType = ctx.message.document?.mime_type || 
+                     ctx.message.audio?.mime_type || 
+                     ctx.message.voice?.mime_type || 
+                     (ctx.message.photo ? 'image/jpeg' : null);
+
+    const allowed = ALLOWED_MIMES[state.tool];
+    if (allowed && mimeType) {
+      const isAllowed = allowed.some(type => mimeType.startsWith(type) || type === mimeType);
+      if (!isAllowed) {
+        const friendlyMap = {
+          'application/pdf': 'PDF',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word (.docx)',
+          'image/jpeg': 'JPG',
+          'image/png': 'PNG',
+          'image/webp': 'WebP',
+          'audio/mpeg': 'MP3',
+          'audio/ogg': 'Voice/Ogg'
+        };
+        const expectedNames = allowed.map(t => friendlyMap[t] || t.split('/')[1].toUpperCase()).join(', ');
+        return sendMarkdownSafe(ctx, menus.invalidFileType(expectedNames), userId, true);
+      }
+    } else if (allowed && !mimeType) {
+      return sendMarkdownSafe(ctx, '⚠️ I could not verify the type of this file. Please send it as a standard file or photo.', userId, true);
+    }
+
     const msg = await sendMarkdownSafe(ctx, menus.processing(state.tool), userId);
     processingMessages.set(userId, msg.message_id);
     
@@ -887,14 +959,15 @@ async function startBot() {
                      ctx.message.photo?.pop().file_id;
       const buffer = await downloadTelegramFile(fileId, ctx);
       let result = { sent: false };
+
+      // --- Magic Number Verification: Anti-Spoofing ---
+      if (!verifyFileSignature(buffer, state.tool)) {
+        throw new Error('The file content does not match its extension. Please send a valid, uncorrupted file.');
+      }
       
       const fileName = ctx.message.document?.file_name || 
                        ctx.message.audio?.file_name || 
                        (ctx.message.voice ? 'voice_note.ogg' : ctx.message.photo ? 'photo.jpg' : 'file.pdf');
-      const mimeType = ctx.message.document?.mime_type || 
-                       ctx.message.audio?.mime_type || 
-                       ctx.message.voice?.mime_type || 
-                       (ctx.message.photo ? 'image/jpeg' : 'application/pdf');
 
       // Registry Loop: Delegate to the correct handler
       for (const handler of handlers) {

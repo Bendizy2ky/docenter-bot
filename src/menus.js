@@ -200,6 +200,14 @@ Type /credits to top up.
 This file is slightly larger than our current processing limit of *${limit}MB* for this tool. To ensure the best quality and speed, could you please try a smaller version or a different file?
 `,
 
+  // Sent when the file type does not match the tool's requirements
+  invalidFileType: (expected) => `
+❌ *Unsupported File Format*
+
+The file you sent doesn't seem to match what this tool requires. 
+Please send a file in one of these formats: *${expected}*
+`,
+
   premiumMarketer: {
     getSuggestion: (tool) => {
       const suggestions = {

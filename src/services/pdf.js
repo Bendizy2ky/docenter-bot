@@ -312,7 +312,11 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
       '--outdir',
       tmpDir,
       inputPath
-    ], { timeout: 120000 });
+    ], { 
+      timeout: 120000, 
+      maxBuffer: 50 * 1024 * 1024, // Protect against "Output Bombs" (max 50MB stdout)
+      killSignal: 'SIGKILL' 
+    });
 
     if (res.status !== 0) {
       cleanupTmp(tmpDir);
@@ -371,7 +375,11 @@ async function tryLocalLibreOfficeConversion(fileBuffer, fileName) {
       '--outdir',
       tmpDir,
       inputPath
-    ], { timeout: 120000 });
+    ], { 
+      timeout: 120000, 
+      maxBuffer: 50 * 1024 * 1024, 
+      killSignal: 'SIGKILL' 
+    });
     if (res.error) {
       console.warn('LibreOffice convert spawn error:', res.error && res.error.message);
       cleanupTmp(tmpDir);
