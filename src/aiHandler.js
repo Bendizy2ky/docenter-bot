@@ -56,6 +56,15 @@ module.exports = (bot, shared) => {
 
     if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits('Image Generation', cost, balance));
 
+    if (userPrompt.length > 500) {
+      await ctx.reply(
+        '📝 Your prompt was very detailed. ' +
+        'I have shortened it to 500 characters ' +
+        'for faster generation. For best results ' +
+        'keep prompts under 200 words.'
+      );
+    }
+
     const processingMsg = await ctx.reply(
       '🎨 Generating your image...\n' +
       '⏳ This usually takes 15–45 seconds to render.\n' +
@@ -91,18 +100,31 @@ module.exports = (bot, shared) => {
     }
   });
 
-  async function generateImageWithPollinations(prompt) {
+  async function generateImageWithPollinations(prompt, model = 'turbo') {
     try {
-      const cleanPrompt = prompt.trim().replace(/[^\w\s,.-]/g, ' ').replace(/\s+/g, ' ').trim();
+      let cleanPrompt = prompt.trim().replace(/[^\w\s,.-]/g, ' ').replace(/\s+/g, ' ').trim();
       if (!cleanPrompt || cleanPrompt.length < 3) {
         return { success: false, error: 'Prompt is too short. Please describe the image you want.' };
       }
       
+      if (cleanPrompt.length > 500) {
+        console.log(`[Image Gen] Prompt truncated from ${cleanPrompt.length} to 500 chars`);
+        cleanPrompt = cleanPrompt.slice(0, 497) + '...';
+      }
+
       const encodedPrompt = encodeURIComponent(cleanPrompt);
-      const seed = Math.floor(Math.random() * 999999);
       const timeout = parseInt(process.env.IMAGE_GEN_TIMEOUT_MS) || 90000;
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&enhance=true&seed=${seed}`;
-      
+      const modelParam = model ? `&model=${model}` : '';
+
+      const imageUrl = [
+        'https://image.pollinations.ai/prompt/',
+        encodedPrompt,
+        `?width=1024&height=1024`,
+        modelParam,
+        '&nologo=true',
+        `&seed=${Math.floor(Math.random() * 999999)}`
+      ].join('');
+
       console.log(`[Image Gen] Requesting: ${imageUrl}`);
       
       const response = await axios.get(imageUrl, {
@@ -129,27 +151,66 @@ module.exports = (bot, shared) => {
       
       return { success: true, buffer: imageBuffer, contentType: contentType, prompt: cleanPrompt };
     } catch (error) {
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        return { success: false, error: 'Image generation timed out. Our rendering engine is experiencing high demand. Please try again or refine your description.' };
+      const statusCode = error.response?.status || 0;
+      
+      if (statusCode === 402) {
+        console.log(`[Image Gen] Model requires payment (402)`);
+        return {
+          success: false,
+          errorCode: 402,
+          error: 'This model requires payment'
+        };
       }
-      console.error(`[Image Gen] Error: ${error.message}`);
-      return { success: false, error: 'Could not generate image right now. Please try again in a few minutes.' };
+      
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        return {
+          success: false,
+          errorCode: 408,
+          error: 'Image generation timed out. Please try again.'
+        };
+      }
+      
+      console.error('[Image Gen] Error:', error.message);
+      return {
+        success: false,
+        errorCode: statusCode,
+        error: 'Could not generate image. Please try again.'
+      };
     }
   }
 
-  async function generateImageWithRetry(prompt, maxAttempts = 2) {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`[Image Gen] Attempt ${attempt} of ${maxAttempts}`);
-      const result = await generateImageWithPollinations(prompt);
-      if (result.success) return result;
-      if (attempt < maxAttempts) {
-        console.log(`[Image Gen] Attempt ${attempt} failed. Retrying in 5 seconds...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+  async function generateImageWithRetry(prompt) {
+    const FREE_MODELS = ['turbo', 'flux-schnell', ''];
+    
+    for (let modelIndex = 0; modelIndex < FREE_MODELS.length; modelIndex++) {
+      const model = FREE_MODELS[modelIndex];
+      console.log(`[Image Gen] Trying model: ${model || 'default'}`);
+      
+      const result = await generateImageWithPollinations(prompt, model);
+      
+      if (result.success) {
+        console.log(`[Image Gen] Success with model: ${model || 'default'}`);
+        return result;
       }
+      
+      if (result.errorCode === 402) {
+        console.log(`[Image Gen] Model "${model}" requires payment. Trying next free model...`);
+        continue;
+      }
+      
+      if (modelIndex === 0) {
+        console.log(`[Image Gen] Non-payment error. Retrying in 5 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        const retry = await generateImageWithPollinations(prompt, model);
+        if (retry.success) return retry;
+      }
+      
+      break;
     }
+    
     return {
       success: false,
-      error: 'Image generation failed after several attempts. Our systems are currently under heavy load. Please try again shortly.'
+      error: 'Image generation is currently unavailable. Please try again later.'
     };
   }
 

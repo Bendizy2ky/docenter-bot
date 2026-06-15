@@ -854,7 +854,7 @@ async function startBot() {
       // AI & Professional Tools Re-routing
       if (cmd === 'generate_image' || cmd === 'generateimage') {
         userState.set(userId, { tool: 'ai_image_generator' });
-        return sendMarkdownSafe(ctx, "🎨 *AI Image Generator*\n\nDescribe the image you want to create.\n\nCost: 5 credits.");
+        return sendMarkdownSafe(ctx, "🎨 *AI Image Generator*\n\nDescribe the image you want to create.\n\nCost: 2 credits.");
       }
       if (cmd === 'photo_fix' || cmd === 'photofix') {
         userState.set(userId, { tool: 'photo_fix' });
