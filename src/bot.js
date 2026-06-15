@@ -67,6 +67,8 @@ const userState = require('./state');
 // Tracks the processing message id for each user so global errors can clear it
 const processingMessages = new Map();
 
+const LOW_CREDIT_THRESHOLD = 5;
+
 // Rate Limiter Storage
 const userLastRequests = new Map();
 
@@ -79,13 +81,22 @@ function escapeMarkdown(text) {
 }
 
 // Safely send Markdown text
-async function sendMarkdownSafe(ctx, text, extra = {}) {
+async function sendMarkdownSafe(ctx, text, userId = null, checkLowCredits = false, extra = {}) {
   try {
     // Convert standard Markdown **bold** to Telegram Markdown *bold*
     // and remove backslashes to clean up the UI as requested.
-    const processedText = String(text)
+    let processedText = String(text)
       .replace(/\*\*(.*?)\*\*/g, '*$1*')
       .replace(/\\/g, '');
+
+    // Append referral prompt if credits are low
+    if (checkLowCredits && userId) {
+      const balance = await getCredits(userId);
+      if (balance <= LOW_CREDIT_THRESHOLD) {
+        const promo = menus.referralPromptLowCredits || "\n\n🎁 *Low on credits?* Share your link via /refer to earn free credits!";
+        processedText += `\n${promo}`;
+      }
+    }
 
     return await ctx.reply(processedText, { parse_mode: 'Markdown', ...extra });
   } catch (e) {
@@ -356,61 +367,68 @@ async function startBot() {
 
     welcomeText += `\n\n────────────────────\n💳 *Account Balance:* ${balance} credits`;
 
-    return sendMarkdownSafe(ctx, welcomeText);
+    return sendMarkdownSafe(ctx, welcomeText, userId, true);
   });
 
   // ── /cancel ─────────────────────────────────
   bot.command('cancel', (ctx) => {
     const userId = ctx.from.id.toString();
     userState.cancelWorkflow(userId);
-    sendMarkdownSafe(ctx, menus.workflowCancelled);
+    sendMarkdownSafe(ctx, menus.workflowCancelled, userId, true);
   });
 
   // ── /help ───────────────────────────────────
   bot.command('help', (ctx) => {
-    sendMarkdownSafe(ctx, menus.help);
+    sendMarkdownSafe(ctx, menus.help, ctx.from.id.toString(), true);
   });
 
   // ── /balance ────────────────────────────────
   bot.command('balance', async (ctx) => {
-    const credits = await getCredits(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, `💳 Your current balance: *${credits} credits*`);
+    const userId = ctx.from.id.toString();
+    const credits = await getCredits(userId);
+    sendMarkdownSafe(ctx, `💳 Your current balance: *${credits} credits*`, userId, true);
   });
 
   // ── /pdf ────────────────────────────────────
   bot.command('pdf', (ctx) => {
-    userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.pdf);
+    const userId = ctx.from.id.toString();
+    userState.delete(userId);
+    sendMarkdownSafe(ctx, menus.pdf, userId, true);
   });
 
   // ── /ai ─────────────────────────────────────
   bot.command('ai', (ctx) => {
-    userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.ai);
+    const userId = ctx.from.id.toString();
+    userState.delete(userId);
+    sendMarkdownSafe(ctx, menus.ai, userId, true);
   });
 
   // Audio tools
   bot.command('audio', (ctx) => {
-    userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.audio);
+    const userId = ctx.from.id.toString();
+    userState.delete(userId);
+    sendMarkdownSafe(ctx, menus.audio, userId, true);
   });
 
   // ── /image ──────────────────────────────────
   bot.command('image', (ctx) => {
-    userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.image);
+    const userId = ctx.from.id.toString();
+    userState.delete(userId);
+    sendMarkdownSafe(ctx, menus.image, userId, true);
   });
 
   // ── /packs ──────────────────────────────────
   bot.command('packs', (ctx) => {
-    userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.packsMenu);
+    const userId = ctx.from.id.toString();
+    userState.delete(userId);
+    sendMarkdownSafe(ctx, menus.packsMenu, userId, true);
   });
 
   // ── /credits ────────────────────────────────
   bot.command('credits', (ctx) => {
-    userState.delete(ctx.from.id.toString());
-    sendMarkdownSafe(ctx, menus.credits);
+    const userId = ctx.from.id.toString();
+    userState.delete(userId);
+    sendMarkdownSafe(ctx, menus.credits, userId, true);
   });
 
   // ── Workflows ───────────────────────────────
@@ -495,9 +513,9 @@ async function startBot() {
     const cost = TOOL_COSTS[state.tool];
     const balance = await getCredits(userId);
 
-    if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance));
+    if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance), userId, true);
 
-    const msg = await sendMarkdownSafe(ctx, menus.processing(state.tool));
+    const msg = await sendMarkdownSafe(ctx, menus.processing(state.tool), userId);
     processingMessages.set(userId, msg.message_id);
 
     try {
@@ -716,7 +734,7 @@ async function startBot() {
     const balance = await getCredits(userId);
     if (balance < exportCost) {
       await ctx.answerCbQuery('❌ Not enough credits.');
-      return sendMarkdownSafe(ctx, menus.notEnoughCredits('Document Export', exportCost, balance));
+      return sendMarkdownSafe(ctx, menus.notEnoughCredits('Document Export', exportCost, balance), userId, true);
     }
 
     await ctx.answerCbQuery('🚀 Generating your document...');
@@ -744,7 +762,7 @@ async function startBot() {
       if (sent) {
         const remaining = await deductCredits(userId, exportCost);
         await ctx.telegram.deleteMessage(ctx.chat.id, editMsg.message_id);
-        await sendMarkdownSafe(ctx, menus.success('doc_export', remaining));
+        await sendMarkdownSafe(ctx, menus.success('doc_export', remaining), userId, true);
         userState.delete(userId);
       }
     } catch (e) {
@@ -759,7 +777,7 @@ async function startBot() {
     const userId = ctx.from.id.toString();
     const pack   = CREDIT_PACKS[packKey];
 
-    await sendMarkdownSafe(ctx, `⏳ Generating payment link for *${pack.name} Pack*...`);
+    await sendMarkdownSafe(ctx, `⏳ Generating payment link for *${pack.name} Pack*...`, userId);
 
     const result = await generatePaymentLink(userId, packKey);
 
@@ -767,7 +785,7 @@ async function startBot() {
       return ctx.reply('⚠️ Could not generate payment link. Please try again.');
     }
 
-    await sendMarkdownSafe(ctx, `💳 *${pack.name} Pack — ₦${pack.price.toLocaleString()}*\n` +
+    await sendMarkdownSafe(ctx, `💳 *${pack.name} Pack — ₦${pack.price.toLocaleString()}*\n`, userId, true) +
       `You will receive *${pack.credits} credits*.\n\n` +
       `👉 [Tap here to pay securely](${result.paymentUrl})\n\n` +
       `_Credits are added automatically after payment._`);
@@ -794,13 +812,16 @@ async function startBot() {
     require('./workflowHandler')(bot, shared)
   ];
 
-  bot.on(['document', 'photo'], async (ctx) => {
+  bot.on(['document', 'photo', 'audio', 'voice'], async (ctx) => {
     const userId = ctx.from.id.toString();
     const state = userState.get(userId);
     if (!state) return sendMarkdownSafe(ctx, 'Please choose a tool first.\n\nType /pdf for PDF tools or /image for image tools.');
     
     // --- Proactive File Sensitivity: Tool-Specific Validation ---
-    const fileSize = ctx.message.document?.file_size || ctx.message.photo?.[0]?.file_size || 0;
+    const fileSize = ctx.message.document?.file_size || 
+                     ctx.message.audio?.file_size || 
+                     ctx.message.voice?.file_size || 
+                     ctx.message.photo?.slice(-1)[0]?.file_size || 0;
     
     let toolLimitMB = 20; // Global fallback
 
@@ -822,18 +843,26 @@ async function startBot() {
 
     const cost = TOOL_COSTS[state.tool];
     const balance = await getCredits(userId);
-    if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance));
+    if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance), userId, true);
 
-    const msg = await sendMarkdownSafe(ctx, menus.processing(state.tool));
+    const msg = await sendMarkdownSafe(ctx, menus.processing(state.tool), userId);
     processingMessages.set(userId, msg.message_id);
     
     try {
-      const fileId = ctx.message.document?.file_id || ctx.message.photo?.pop().file_id;
+      const fileId = ctx.message.document?.file_id || 
+                     ctx.message.audio?.file_id || 
+                     ctx.message.voice?.file_id || 
+                     ctx.message.photo?.pop().file_id;
       const buffer = await downloadTelegramFile(fileId, ctx);
       let result = { sent: false };
       
-      const fileName = ctx.message.document?.file_name || (ctx.message.photo ? 'photo.jpg' : 'file.pdf');
-      const mimeType = ctx.message.document?.mime_type || (ctx.message.photo ? 'image/jpeg' : 'application/pdf');
+      const fileName = ctx.message.document?.file_name || 
+                       ctx.message.audio?.file_name || 
+                       (ctx.message.voice ? 'voice_note.ogg' : ctx.message.photo ? 'photo.jpg' : 'file.pdf');
+      const mimeType = ctx.message.document?.mime_type || 
+                       ctx.message.audio?.mime_type || 
+                       ctx.message.voice?.mime_type || 
+                       (ctx.message.photo ? 'image/jpeg' : 'application/pdf');
 
       // Registry Loop: Delegate to the correct handler
       for (const handler of handlers) {
@@ -879,9 +908,9 @@ async function startBot() {
                 ]]
               }
             };
-            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), extra);
+            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true, extra);
           } else {
-            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance));
+            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true);
           }
         }
 
@@ -908,11 +937,11 @@ async function startBot() {
       const nextTool = newState.steps[newState.currentStep];
       
       await sendMarkdownSafe(ctx, menus.workflowNextStepPrompt(
-        nextTool.replace(/_/g, ' '), 
-        TOOL_COSTS[nextTool]
-      ));
+        nextTool.replace(/_/g, ' '),
+        TOOL_COSTS[nextTool]), userId, true
+      );
     } else if (state.isWorkflow) {
-      await sendMarkdownSafe(ctx, menus.workflowComplete(state.workflow, finalBalance));
+      await sendMarkdownSafe(ctx, menus.workflowComplete(state.workflow, finalBalance), userId, true);
       userState.delete(userId);
     } else {
       // Don't delete if we are waiting for an export selection
@@ -961,52 +990,52 @@ async function startBot() {
       // Handle Workflow Navigation
       if (cmd === 'cancel') {
         userState.cancelWorkflow(userId);
-        return sendMarkdownSafe(ctx, menus.workflowCancelled);
+        return sendMarkdownSafe(ctx, menus.workflowCancelled, userId, true);
       }
       if (cmd === 'finish') {
         userState.delete(userId);
-        return sendMarkdownSafe(ctx, `✅ Session finished. Credits saved. Type /start for new tools.`);
+        return sendMarkdownSafe(ctx, `✅ Session finished. Credits saved. Type /start for new tools.`, userId, true);
       }
 
       // Map common menu commands to the same behavior as bot.command handlers
       if (cmd === 'compress_image' || cmd === 'compressimage') {
         userState.set(userId, { tool: 'compress_image' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG). (Max 5MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG). (Max 5MB)'), userId, true);
       }
       if (cmd === 'remove_background' || cmd === 'removebackground') {
         userState.set(userId, { tool: 'remove_background' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG). (Max 5MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* (JPG or PNG). (Max 5MB)'), userId, true);
       }
       if (cmd === 'passport_photo' || cmd === 'passportphoto') {
         userState.set(userId, { tool: 'passport_photo' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send a *clear, front-facing photo*. (Max 5MB)\n\n' + menus.passportGuide));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send a *clear, front-facing photo*. (Max 5MB)\n\n' + menus.passportGuide), userId, true);
       }
       if (cmd === 'apply_background' || cmd === 'applybackground') {
         userState.set(userId, { tool: 'apply_background' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (Max 5MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (Max 5MB)'), userId, true);
       }
       if (cmd === 'convert_image' || cmd === 'convertimage') {
         return sendMarkdownSafe(ctx,
-          `🖼 *Image Conversion*\n\nChoose output format:\n• /to_png — Convert to PNG (1 credit)\n• /to_jpg — Convert to JPG (1 credit)\n• /to_webp — Convert to WebP (1 credit)\n\n_Then send your image (photo or file).`
-        );
+          `🖼 *Image Conversion*\n\nChoose output format:\n• /to_png — Convert to PNG (1 credit)\n• /to_jpg — Convert to JPG (1 credit)\n• /to_webp — Convert to WebP (1 credit)\n\n_Then send your image (photo or file).`,
+          userId, true);
       }
       if (cmd === 'to_png' || cmd === 'topng') {
         userState.set(userId, { tool: 'convert_image', target: 'png' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'), userId, true);
       }
       if (cmd === 'to_jpg' || cmd === 'tpjpg') {
         userState.set(userId, { tool: 'convert_image', target: 'jpg' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'), userId, true);
       }
       if (cmd === 'to_webp' || cmd === 'towebp') {
         userState.set(userId, { tool: 'convert_image', target: 'webp' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send your *image* now. (Max 5MB)'), userId, true);
       }
       
       // AI & Professional Tools Re-routing
       if (cmd === 'generate_image' || cmd === 'generateimage') {
         return sendMarkdownSafe(ctx,
-          '🎨 *AI Image Generator*\n\n' +
+          '🎨 *AI Image Generator*\n\n' + 
           '⚙️ This feature is currently being upgraded ' +
           'for better quality and speed.\n\n' +
           'It will be available very soon!\n\n' +
@@ -1014,47 +1043,47 @@ async function startBot() {
           '/ai_summarise — Summarise any document\n' +
           '/ai_cv_enhancer — Improve your CV\n\n' +
           '_No credits deducted._'
-        );
+        , userId, true);
       }
       if (cmd === 'photo_fix' || cmd === 'photofix') {
         userState.set(userId, { tool: 'photo_fix' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance. (Max 5MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance. (Max 5MB)'), userId, true);
       }
       if (cmd === 'transcribe') {
         userState.set(userId, { tool: 'transcribe_audio' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe. (Max 10MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send an *audio file or voice note* to transcribe. (Max 10MB)'), userId, true);
       }
       if (cmd === 'summarize' || cmd === 'ai_summarise' || cmd === 'ai_summarize') {
         userState.set(userId, { tool: 'ai_summarize' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *document* you want me to summarize. (Best for documents up to 15 pages)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *document* you want me to summarize. (Best for documents up to 15 pages)'), userId, true);
       }
       if (cmd === 'cv_enhance' || cmd === 'cvenhance' || cmd === 'ai_cv_enhancer') {
         userState.set(userId, { tool: 'cv_enhance' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Send your *CV (PDF or Word)* for enhancement. (Max 5 pages recommended)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Send your *CV (PDF or Word)* for enhancement. (Max 5 pages recommended)'), userId, true);
       }
       if (cmd === 'compress_pdf' || cmd === 'compresspdf') {
         userState.set(userId, { tool: 'compress_pdf' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress. (Max 10MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to compress. (Max 10MB)'), userId, true);
       }
       if (cmd === 'pdf_to_word' || cmd === 'pdftoword') {
         userState.set(userId, { tool: 'pdf_to_word' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word. (Max 10MB)'));
+        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *PDF* you want to convert to Word. (Max 10MB)'), userId, true);
       }
 
       // Re-route top-level menu clicks
-      if (cmd === 'start') return sendMarkdownSafe(ctx, menus.welcome + `\n💳 Your credits: *${await getCredits(userId)}*`);
-      if (cmd === 'pdf') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.pdf); }
-      if (cmd === 'ai') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.ai); }
-      if (cmd === 'image') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.image); }
-      if (cmd === 'audio') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.audio); }
-      if (cmd === 'credits') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.credits); }
-      if (cmd === 'help') return sendMarkdownSafe(ctx, menus.help);
+      if (cmd === 'start') return sendMarkdownSafe(ctx, menus.welcome + `\n💳 Your credits: *${await getCredits(userId)}*`, userId, true);
+      if (cmd === 'pdf') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.pdf, userId, true); }
+      if (cmd === 'ai') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.ai, userId, true); }
+      if (cmd === 'image') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.image, userId, true); }
+      if (cmd === 'audio') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.audio, userId, true); }
+      if (cmd === 'credits') { userState.delete(userId); return sendMarkdownSafe(ctx, menus.credits, userId, true); }
+      if (cmd === 'help') return sendMarkdownSafe(ctx, menus.help, userId, true);
 
       // Fallthrough: unrecognized text
-      return sendMarkdownSafe(ctx, `I didn't understand that 😅\n\nType /start to see the main menu.`);
+      return sendMarkdownSafe(ctx, `I didn't understand that 😅\n\nType /start to see the main menu.`, userId, true);
     } catch (e) {
       console.error('Error in text handler:', e);
-      return sendMarkdownSafe(ctx, `I didn't understand that 😅\n\nType /start to see the main menu.`);
+      return sendMarkdownSafe(ctx, `I didn't understand that 😅\n\nType /start to see the main menu.`, ctx.from.id.toString(), true);
     }
   });
 

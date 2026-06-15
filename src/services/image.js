@@ -118,7 +118,7 @@ async function removeBackground(fileBuffer) {
     };
 
   } catch (error) {
-    console.error('Remove background error:', error.response?.data?.toString() || error.message);
+    console.error('Remove background error:', error.response?.data ? Buffer.from(error.response.data).toString() : error.message);
     return { success: false, error: 'Failed to remove background.' };
   }
 }
@@ -249,18 +249,15 @@ async function applyBackground(transparentPngBuffer, color) {
       return { success: false, error: 'Could not determine image dimensions.' };
     }
 
-    // 3. Create a solid color background layer using Sharp
-    const backgroundBuffer = await sharp({
+    // 3. Create background and composite in one pipeline to avoid format detection issues
+    const finalBuffer = await sharp({
       create: {
-        width: width,
-        height: height,
+        width,
+        height,
         channels: 3, // RGB
         background: parsedColor,
       },
-    }).toBuffer();
-
-    // 4. Composite the transparent PNG on top of the color layer
-    const finalBuffer = await sharp(backgroundBuffer)
+    })
       .composite([{ input: transparentPngBuffer, blend: 'over' }])
       .jpeg({ quality: 95 }) // 5. Return a JPEG buffer at 95% quality
       .toBuffer();

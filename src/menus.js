@@ -205,7 +205,8 @@ Type /credits to top up.
         transcribe_audio: "Transcription finalized. For a high-level briefing on these notes, our /summarize tool is just one click away.",
         "Professional Passport Pack": "Your elite passport assets are ready. If you're preparing these for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
         doc_export: "Your document has been professionally formatted and delivered. To ensure your entire career profile is just as polished, try our /ai_cv_enhancer.",
-        default: "Precision processing complete. Our elite suite of AI tools is designed to keep you ahead—type /start to explore our premium services."
+        default: "Precision processing complete. Our elite suite of AI tools is designed to keep you ahead—type /start to explore our premium services.",
+        referral_promo: "🎁 *Want more free credits?* Invite friends to DocCenter! You get 3 credits for every friend who joins. Type /refer for your link."
       };
       return suggestions[tool] || suggestions.default;
     }
@@ -214,7 +215,7 @@ Type /credits to top up.
   // Sent after a tool completes successfully
   success: (tool, remaining) => {
     const suggestion = menus.premiumMarketer.getSuggestion(tool);
-    return `✨ *Premium Results Delivered*\n\n${suggestion}\n\n💳 Credits remaining: *${remaining}*`;
+    return `✨ *Premium Results Delivered*\n\n${suggestion}\n\n💳 Credits remaining: *${remaining}*\n\n${menus.premiumMarketer.getSuggestion('referral_promo')}`;
   },
 
   // Sent when something goes wrong during processing
@@ -246,6 +247,11 @@ Cost: ${cost} credits.
 
 Click /continue to proceed with the current file, or /finish to end this session.
 `,
+
+  referralPromptLowCredits: `
+🎁 *Low on credits?* Invite friends with /refer and earn 3 credits for every successful referral!
+`,
+
 
   workflowComplete: (name, remaining) => {
     const suggestion = menus.premiumMarketer.getSuggestion(name);

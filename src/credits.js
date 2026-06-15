@@ -16,6 +16,9 @@ const FILE = path.join(DATA_DIR, 'credits.json');
 // Simple async queue to prevent concurrent write issues (Race Conditions)
 let writeQueue = Promise.resolve();
 
+// In-memory cache to prevent reading stale data from disk
+let creditsCache = null;
+
 /**
  * Internal helper to queue file writes
  */
