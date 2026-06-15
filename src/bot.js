@@ -942,47 +942,45 @@ async function startBot() {
   // LAUNCH
   // ────────────────────────────────────────────
 
-  (async () => {
-    // Robust launch logic: try to get botInfo first and retry on network errors
-    const useWebhook = (process.env.USE_WEBHOOK === 'true') || !!process.env.WEBHOOK_URL;
-
-    async function startPollingWithRetries() {
-      const maxAttempts = 10;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          // Ensure Telegram is reachable by calling getMe with a short timeout
-          await bot.telegram.getMe();
-          await bot.launch({ dropPendingUpdates: true });
-          console.log('✅ DocCenter bot is running! Open Telegram and send /start to your bot.');
-          try { startBackgroundWorker(); } catch (e) { console.error('Failed to start background worker:', e.message); }
-          return true;
-        } catch (err) {
-          const isConflict = err?.response?.error_code === 409;
-          const isNetwork = err?.code === 'ETIMEDOUT' || err?.code === 'ENOTFOUND' || String(err).includes('getaddrinfo');
-          if (isConflict) {
-            console.error('Telegram polling conflict (409). Ensure only one instance is running.');
-            return false;
-          }
-          console.error(`Launch attempt ${attempt} failed:`, err?.response?.data || err.message || err);
-          if (attempt < maxAttempts) {
-            const backoff = Math.min(30000, 2000 * attempt);
-            console.error(`Retrying in ${backoff/1000}s...`);
-            await new Promise((r) => setTimeout(r, backoff));
-            continue;
-          }
-          console.error('Failed to launch bot after multiple attempts. Will keep running and retry later.');
+  async function startPollingWithRetries() {
+    const maxAttempts = 10;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        // Ensure Telegram is reachable by calling getMe with a short timeout
+        await bot.telegram.getMe();
+        await bot.launch({ dropPendingUpdates: true });
+        console.log('✅ DocCenter bot is running! Open Telegram and send /start to your bot.');
+        try { startBackgroundWorker(); } catch (e) { console.error('Failed to start background worker:', e.message); }
+        return true;
+      } catch (err) {
+        const isConflict = err?.response?.error_code === 409;
+        if (isConflict) {
+          console.error('Telegram polling conflict (409). Ensure only one instance is running.');
           return false;
         }
+        console.error(`Launch attempt ${attempt} failed:`, err?.response?.data || err.message || err);
+        if (attempt < maxAttempts) {
+          const backoff = Math.min(30000, 2000 * attempt);
+          console.error(`Retrying in ${backoff/1000}s...`);
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        console.error('Failed to launch bot after multiple attempts.');
+        return false;
       }
-      return false;
     }
+    return false;
+  }
 
-    if (useWebhook) {
-      const webhookUrl = process.env.WEBHOOK_URL;
-      const port = Number(process.env.PORT) || 3000;
-      const hookPath = process.env.WEBHOOK_PATH || `/telegraf/${bot.secretPathComponent()}`;
+  // Robust launch logic: try to get botInfo first and retry on network errors
+  const useWebhook = (process.env.USE_WEBHOOK === 'true') || !!process.env.WEBHOOK_URL;
 
-      try {
+  if (useWebhook) {
+    const webhookUrl = process.env.WEBHOOK_URL;
+    const port = Number(process.env.PORT) || 3000;
+    const hookPath = process.env.WEBHOOK_PATH || `/telegraf/${bot.secretPathComponent()}`;
+
+    try {
         await bot.launch({ webhook: { domain: webhookUrl, port, hookPath } });
         console.log('✅ DocCenter bot is running in webhook mode!');
         console.log(`Webhook URL: ${webhookUrl}${hookPath}`);
@@ -990,15 +988,21 @@ async function startBot() {
       } catch (err) {
         console.error('Failed to launch in webhook mode:', err?.message || err);
         console.error('Will attempt polling mode as fallback.');
-        await startPollingWithRetries();
-      }
-    } else {
-      await startPollingWithRetries();
+      if (!(await startPollingWithRetries())) process.exit(1);
     }
-  })();
+  } else {
+    if (!(await startPollingWithRetries())) process.exit(1);
+  }
 
-  process.once('SIGINT',  () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  const shutdown = (signal) => {
+    console.log(`Received ${signal}. Shutting down gracefully...`);
+    bot.stop(signal);
+    // Force exit after a short timeout to prevent Intervals/Workers from hanging the process
+    setTimeout(() => process.exit(0), 1000).unref();
+  };
+
+  process.once('SIGINT',  () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 module.exports = { startBot };
