@@ -313,6 +313,10 @@ function parseColor(colorString) {
  * saturation, and sharpness.
  */
 async function enhanceImage(fileBuffer) {
+  if (!fileBuffer || fileBuffer.length === 0) {
+    return { success: false, error: 'No image data provided for enhancement.' };
+  }
+
   return new Promise((resolve) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -321,7 +325,8 @@ async function enhanceImage(fileBuffer) {
           { effect: "gamma:100" },
           { effect: "unsharp_mask:60" }
         ],
-        folder: "fileforge_enhancements"
+        folder: "fileforge_enhancements",
+        resource_type: "image"
       },
       async (error, result) => {
         if (error) {
@@ -333,13 +338,14 @@ async function enhanceImage(fileBuffer) {
           // Fetch the enhanced image back as a buffer
           const response = await axios.get(result.secure_url, {
             responseType: 'arraybuffer',
-            timeout: 30000
+            timeout: 45000 // Increased timeout for heavy AI processing
           });
           
           resolve({
             success: true,
             buffer: Buffer.from(response.data),
-            url: result.secure_url
+            url: result.secure_url,
+            publicId: result.public_id
           });
         } catch (downloadErr) {
           console.error('Failed to download enhanced image:', downloadErr.message);

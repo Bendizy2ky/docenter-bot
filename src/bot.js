@@ -72,7 +72,7 @@ const ALLOWED_MIMES = {
   convert_image:      ['image/jpeg', 'image/png', 'image/webp'],
   image_enhancer:     ['image/jpeg', 'image/png', 'image/webp'],
   passportphoto_pack: ['image/jpeg', 'image/png', 'image/webp'],
-  apply_background:   ['image/jpeg', 'image/png', 'image/webp']
+  business_photo_pack: ['image/jpeg', 'image/png', 'image/webp']
 };
 
 /**
