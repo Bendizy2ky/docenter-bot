@@ -122,7 +122,7 @@ Type /credits to buy credits.
 Get more done with a single automated process.
 
 ✨ /photo_fix — Auto-enhance any photo (3 credits)
-📋 /document_photo_pack — Passport ready + Print Sheet (6 credits)
+📋 /passportphoto_pack — Premium Passport + Optional Print Sheet (6 credits)
 `,
 
     // Sent when user types /audio
@@ -218,7 +218,7 @@ Please send a file in one of these formats: *${expected}*
         remove_background: "Visuals refined. For a truly professional finish, use our /passport_photo tool to prepare this image for any corporate or official use.",
         passport_photo: "Excellence delivered! Your passport photo looks great. To make it absolutely perfect for official embassy or corporate use, would you like to add a professional *White, Blue, or Red* background? For just *3 credits*, we'll ensure it meets every requirement with a studio finish. Give it a try: /apply_background",
         transcribe_audio: "Transcription finalized. For a high-level briefing on these notes, our /summarize tool is just one click away.",
-        "Professional Passport Pack": "Your elite passport assets are ready. If you're preparing these for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
+        "PassportPhoto Pack": "Your elite passport is ready. If you're preparing for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
         doc_export: "Your document has been professionally formatted and delivered. To ensure your entire career profile is just as polished, try our /ai_cv_enhancer.",
         default: "Precision processing complete. Our elite suite of AI tools is designed to keep you ahead—type /start to explore our premium services.",
         referral_promo: "🎁 *Want more free credits?* Invite friends to FileForge! You get 3 credits for every friend who joins. Type /refer for your link."

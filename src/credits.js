@@ -334,11 +334,12 @@ async function getReferralStats(userId) {
  */
 async function getGlobalStats() {
   const all = loadCredits();
+  const ADMIN_ID = '772990882';
   const now = new Date();
   const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
   const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-  const userIds = Object.keys(all);
+  const userIds = Object.keys(all).filter(id => id !== ADMIN_ID);
   let total = userIds.length;
   let daily = 0;
   let weekly = 0;

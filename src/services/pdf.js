@@ -300,10 +300,14 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'word2pdf-'));
     const inputPath = path.join(tmpDir, fileName.replace(/[^a-z0-9\.\-_]/gi, '_'));
     fs.writeFileSync(inputPath, fileBuffer);
+    
+    // Ensure input file has .docx extension for soffice
+    const finalInputPath = inputPath.toLowerCase().endsWith('.docx') ? inputPath : `${inputPath}.docx`;
+    if (finalInputPath !== inputPath) fs.renameSync(inputPath, finalInputPath);
 
-    // Redirect user profile to tmpDir to avoid permission errors on restricted hosts
     const userProfile = `file://${tmpDir}/profile`;
     const prog = process.platform === 'win32' ? 'soffice.exe' : 'soffice';
+    
     const res = spawnSync(prog, [
       `-env:UserInstallation=${userProfile}`,
       '--headless',
@@ -311,7 +315,7 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
       'pdf',
       '--outdir',
       tmpDir,
-      inputPath
+      finalInputPath
     ], { 
       timeout: 120000, 
       maxBuffer: 50 * 1024 * 1024, // Protect against "Output Bombs" (max 50MB stdout)
@@ -323,7 +327,7 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
       return { success: false, error: 'Conversion process failed.' };
     }
 
-    const baseName = path.basename(inputPath).replace(/\.docx$/i, '');
+    const baseName = path.basename(finalInputPath).replace(/\.docx$/i, '');
     const outPath = path.join(tmpDir, `${baseName}.pdf`);
     
     if (!fs.existsSync(outPath)) {
@@ -332,7 +336,7 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
         cleanupTmp(tmpDir);
         return { success: false, error: 'Resulting PDF not found.' };
       }
-      const buf = fs.readFileSync(path.join(tmpDir, files[0]));
+      const buf = fs.readFileSync(path.join(tmpDir, files.find(f => f.includes(baseName)) || files[0]));
       cleanupTmp(tmpDir);
       return { success: true, buffer: buf };
     }

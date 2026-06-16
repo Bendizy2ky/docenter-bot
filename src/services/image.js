@@ -309,15 +309,15 @@ async function enhanceImage(buffer) {
   try {
     const enhanced = await sharp(buffer)
       .rotate() // Auto-fix orientation
-      .normalise() // High Dynamic Range (HDR) effect
+      .clahe({ width: 50, height: 50, maxSlope: 3 }) // Refined Tone Mapping
       .modulate({
-        brightness: 1.02,
-        saturation: 1.25, // More vibrant colors
+        brightness: 1.0,
+        saturation: 1.05, // Subtle, natural skin tones
       })
       .sharpen({ 
-        sigma: 1.2,
-        m1: 0.5,
-        m2: 15 
+        sigma: 0.4, // Natural sharpness, not "digital" looking
+        m1: 0.1,
+        m2: 8 
       })
       .toBuffer();
     return { success: true, buffer: enhanced };

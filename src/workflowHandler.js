@@ -11,54 +11,29 @@ module.exports = (bot, shared) => {
     sendMarkdownSafe(ctx, `✨ *Complete Photo Fix — 3 credits*\n\nSend me any photo and I will automatically enhance, sharpen and improve the quality.\n\n📸 Send your photo now.`);
   });
 
-  bot.command('document_photo_pack', async (ctx) => {
+  bot.command('passportphoto_pack', async (ctx) => {
     const userId = ctx.from.id.toString();
-    const cost = TOOL_COSTS.document_photo_pack;
+    const cost = TOOL_COSTS.passportphoto_pack;
     const balance = await shared.getCredits(userId);
 
-    if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits('Document Pack', cost, balance));
+    if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits('PassportPhoto Pack', cost, balance));
 
-    userState.startWorkflow(userId, 'document_photo_pack', {}, ['document_photo_pack']);
+    userState.startWorkflow(userId, 'passportphoto_pack', {}, ['passportphoto_pack']);
     sendMarkdownSafe(ctx, 
-      `📋 *Document Photo Pack — 6 credits*\n\n` +
-      `I will enhance, remove background, apply correct colour and format your photo perfectly.\n\n` +
-      `Which document is this for?\n\n` +
-      `1️⃣ /doc_nigerian — Nigerian Passport\n` +
-      `2️⃣ /doc_usvisa — US / UK Visa\n` +
-      `3️⃣ /doc_jamb — JAMB\n` +
-      `4️⃣ /doc_nin — NIN Enrollment\n` +
-      `5️⃣ /doc_drivers — Driver's Licence`
-    );
-  });
-
-  const docTypes = { 
-    doc_nigerian: 'nigerian_passport', doc_usvisa: 'us_visa', 
-    doc_jamb: 'jamb', doc_nin: 'nin', doc_drivers: 'drivers_licence' 
-  };
-
-  Object.entries(docTypes).forEach(([cmd, type]) => {
-    bot.command(cmd, (ctx) => {
-      const userId = ctx.from.id.toString();
-      const state = userState.get(userId);
-      if (!state || state.workflow !== 'document_photo_pack') return;
-      
-      state.data.docType = type;
-      userState.set(userId, state);
-
-      sendMarkdownSafe(ctx, 
-        `🎨 *Choose background colour:*\n\n` +
+      `🎨 *PassportPhoto Pack — ${cost} credits*\n\n` +
+      `I will automatically enhance, remove background, and format your photo.\n\n` +
+      `*Choose background colour:*\n\n` +
         `1️⃣ /wf_bg_white — White ✅ (Recommended)\n` +
         `2️⃣ /wf_bg_red — Red\n` +
         `3️⃣ /wf_bg_blue — Blue`
-      );
-    });
+    );
   });
 
   ['white', 'red', 'blue'].forEach(color => {
     bot.command(`wf_bg_${color}`, (ctx) => {
       const userId = ctx.from.id.toString();
       const state = userState.get(userId);
-      if (!state || state.workflow !== 'document_photo_pack') return;
+      if (!state || state.workflow !== 'passportphoto_pack') return;
 
       state.data.bgColor = color;
       userState.set(userId, state);
@@ -100,9 +75,9 @@ module.exports = (bot, shared) => {
   // --- LOGIC PROCESSOR ---
 
   return {
-    canHandle: (tool) => ['photo_fix', 'document_photo_pack', 'business_photo_pack'].includes(tool),
+    canHandle: (tool) => ['photo_fix', 'passportphoto_pack', 'business_photo_pack'].includes(tool),
     process: async (ctx, tool, fileBuffer, fileName, mimeType, state, extendedShared) => {
-      const { safelySendFile, balance, cost, deleteProcessingMessage } = extendedShared;
+      const { safelySendFile, balance, cost, deleteProcessingMessage, fileId } = extendedShared;
       const userId = ctx.from.id.toString();
 
       if (tool === 'photo_fix') {
@@ -112,9 +87,9 @@ module.exports = (bot, shared) => {
         return { sent, buffer: res.buffer };
       }
 
-      if (tool === 'document_photo_pack') {
-        const { docType, bgColor } = state.data;
-        const statusMsg = await ctx.reply("⚙️ Processing your Document Photo Pack...");
+      if (tool === 'passportphoto_pack') {
+        const { bgColor } = state.data;
+        const statusMsg = await ctx.reply("⚙️ Creating your Premium Passport...");
 
         try {
           // Step 1: Enhance
@@ -130,24 +105,30 @@ module.exports = (bot, shared) => {
           const withBg = await applyBackground(noBg.buffer, bgColor || 'white');
           
           // Step 4: Format
-          await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, null, "⏳ Step 4 of 4 — Formatting for document...");
-          const passport = await makePassportPhoto(withBg.buffer, docType || 'nigerian_passport');
+          await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, null, "⏳ Step 4 of 4 — Applying standard dimensions...");
+          const passport = await makePassportPhoto(withBg.buffer, 'nigerian_passport');
           
-          // Step 5: Print Sheet
-          const grid = await createPrintGrid(passport.buffer);
-
           await deleteProcessingMessage(ctx, statusMsg.message_id);
 
-          // Delivery
-          const sent1 = await safelySendFile(ctx, passport.buffer, 'passport.jpg', `✅ *Single Passport Ready*`);
-          const sent2 = await safelySendFile(ctx, grid.buffer, 'print_sheet.jpg', 
-            `✅ *Print Sheet Ready (6 copies on A4)*\n\n` +
-            `🎨 Background: ${bgColor || 'white'}\n` +
-            `Credits used: 6\n` +
-            `Credits remaining: *${balance - cost}*`
-          );
+          // Send High-Quality Passport and offer Print Sheet
+          const caption = `✅ *Premium Passport Ready*\n\n` +
+            `🎨 Color: ${bgColor || 'white'}\n` +
+            `✨ Quality: Optimized for print\n` +
+            `💳 Credits remaining: *${balance - cost}*`;
 
-          return { sent: sent1 && sent2, buffer: passport.buffer };
+          const sentFileId = await safelySendFile(ctx, passport.buffer, 'Premium_Passport.jpg', caption);
+          
+          // Add Inline Button for A4 Sheet
+          if (sentFileId) {
+            const extra = {
+              reply_markup: {
+                inline_keyboard: [[{ text: '🖨 Reserve Print Sheet (A4)', callback_data: `print_sheet:${sentFileId}` }]]
+              }
+            };
+            await ctx.reply('Need this for printing? I can arrange 6 copies on an A4 sheet for you instantly.', extra);
+          }
+
+          return { sent: !!sentFileId, fileId: sentFileId, buffer: passport.buffer };
         } catch (err) {
           await deleteProcessingMessage(ctx, statusMsg.message_id);
           throw err;

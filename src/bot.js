@@ -49,7 +49,7 @@ const TOOL_COSTS = {
   cv_enhance:         10,
   ai_image_generator: 2,
   photo_fix:          3,
-  document_photo_pack: 6,
+  passportphoto_pack: 6,
   business_photo_pack: 8,
   create_print_grid:   2,
   doc_export:         3
@@ -71,7 +71,7 @@ const ALLOWED_MIMES = {
   passport_photo:     ['image/jpeg', 'image/png', 'image/webp'],
   convert_image:      ['image/jpeg', 'image/png', 'image/webp'],
   photo_fix:          ['image/jpeg', 'image/png', 'image/webp'],
-  document_photo_pack:['image/jpeg', 'image/png', 'image/webp'],
+  passportphoto_pack: ['image/jpeg', 'image/png', 'image/webp'],
   apply_background:   ['image/jpeg', 'image/png', 'image/webp']
 };
 
@@ -93,7 +93,7 @@ function verifyFileSignature(buffer, tool) {
   if (tool === 'docx_to_pdf') return isZip;
   if (['ai_summarize', 'cv_enhance'].includes(tool)) return isPdf || isZip;
   
-  if (['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'photo_fix', 'apply_background'].includes(tool)) {
+  if (['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'photo_fix', 'apply_background', 'passportphoto_pack', 'business_photo_pack'].includes(tool)) {
     return isJpeg || isPng || isWebp;
   }
 
@@ -226,7 +226,7 @@ async function downloadTelegramFile(fileId, botOrTokenOrCtx) {
  * safelySendFile
  * ──────────────
  * Sends a file back to the user.
- * Returns true if successful, false if it failed.
+ * Returns the file_id if successful, null if it failed.
  * Credits are NEVER deducted if this returns false.
  */
 async function safelySendFile(ctx, buffer, filename, caption) {
@@ -263,13 +263,13 @@ async function safelySendFile(ctx, buffer, filename, caption) {
         maxBodyLength: Infinity,
       }
     );
-    return !!(response.data && response.data.ok);
+    return response.data?.result?.document?.file_id || response.data?.result?.photo?.pop()?.file_id || null;
   } catch (err) {
     console.error(
       'safelySendFile error:',
       err.response ? err.response.data : err.message
     );
-    return false;
+    return null;
   }
 }
 
@@ -640,7 +640,7 @@ async function startBot() {
       }
 
       await deleteProcessingMessage(ctx, msg.message_id);
-      if (result.sent) {
+      if (result.sent || result.fileId) {
         const finalBalance = await deductCredits(userId, cost, state.tool);
         
         // Check Referral Completion
@@ -884,6 +884,38 @@ async function startBot() {
     }
   });
 
+  // --- Callback Query: Passport Print Sheet ---
+  bot.action(/^print_sheet:(.+)$/, async (ctx) => {
+    const userId = ctx.from.id.toString();
+    const fileId = ctx.match[1];
+    
+    await ctx.answerCbQuery('🖨 Generating your A4 print sheet...');
+    const editMsg = await ctx.reply('⏳ Arranging 6 copies on A4 canvas...');
+
+    try {
+      const { createPrintGrid } = require('./services/image');
+      const fileBuffer = await downloadTelegramFile(fileId, ctx);
+      
+      const grid = await createPrintGrid(fileBuffer);
+      if (!grid.success) throw new Error(grid.error);
+
+      const sent = await safelySendFile(
+        ctx, 
+        grid.buffer, 
+        'Passport_Print_Sheet.jpg', 
+        '✅ *Print Sheet Ready*\n\nYour 6 passport copies have been arranged on an A4 sheet for easy printing.'
+      );
+
+      if (sent) {
+        await ctx.telegram.deleteMessage(ctx.chat.id, editMsg.message_id);
+      }
+    } catch (e) {
+      console.error('Print sheet generation error:', e);
+      await ctx.telegram.deleteMessage(ctx.chat.id, editMsg.message_id);
+      await ctx.reply('⚠️ Failed to generate print sheet. Please try again.');
+    }
+  });
+
   // ── Buy Pack Commands ────────────────────────
   async function handleBuyPack(ctx, packKey) {
     const userId = ctx.from.id.toString();
@@ -1008,7 +1040,7 @@ async function startBot() {
       // Registry Loop: Delegate to the correct handler
       for (const handler of handlers) {
         if (handler.canHandle(state.tool)) {
-          result = await handler.process(ctx, state.tool, buffer, fileName, mimeType, state, { ...shared, balance, cost });
+          result = await handler.process(ctx, state.tool, buffer, fileName, mimeType, state, { ...shared, balance, cost, fileId });
           break;
         }
       }
@@ -1189,6 +1221,15 @@ async function startBot() {
       if (cmd === 'photo_fix' || cmd === 'photofix') {
         userState.set(userId, { tool: 'photo_fix' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance. (Max 5MB)'), userId, true);
+      }
+      if (cmd === 'passportphoto_pack' || cmd === 'passport_photo_pack') {
+        const cost = TOOL_COSTS.passportphoto_pack;
+        userState.startWorkflow(userId, 'passportphoto_pack', {}, ['passportphoto_pack']);
+        return sendMarkdownSafe(ctx, 
+          `🎨 *PassportPhoto Pack — ${cost} credits*\n\nChoose background colour to begin:\n\n` +
+          `1️⃣ /wf_bg_white — White ✅ (Recommended)\n` +
+          `2️⃣ /wf_bg_red — Red\n` +
+          `3️⃣ /wf_bg_blue — Blue`, userId, true);
       }
       if (cmd === 'transcribe') {
         userState.set(userId, { tool: 'transcribe_audio' });
