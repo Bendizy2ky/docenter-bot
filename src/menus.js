@@ -19,7 +19,6 @@ Transform your workflow with instant, high-performance tools designed for excell
 • ✅ *Frictionless:* Pay in ₦ — No account required.
 
 *Select a category to begin:*
-
 🤖 **AI Features** — /ai
 📄 **Document Suite** — /pdf
 🖼 **Image Studio** — /image
