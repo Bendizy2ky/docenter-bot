@@ -919,11 +919,20 @@ async function startBot() {
 
     const result = await generatePaymentLink(userId, packKey);
 
-    // Paystack usually returns 'authorization_url'. We check both to be safe.
-    const checkoutUrl = result.url || result.authorization_url || (result.data && result.data.authorization_url);
+    // Senior Fix: Deep-check Paystack's nested response structure
+    // Paystack native: result.data.authorization_url
+    // Some wrappers: result.authorization_url
+    let checkoutUrl = null;
+    if (result) {
+      const rawUrl = result.url || result.authorization_url || (result.data && (result.data.authorization_url || result.data.url));
+      if (typeof rawUrl === 'string' && rawUrl.startsWith('http')) {
+        checkoutUrl = rawUrl;
+      }
+    }
 
-    if (!result.success || !checkoutUrl) {
-      return ctx.reply('⚠️ Could not generate payment link. Please try again.');
+    if (!checkoutUrl) {
+      console.error(`[Payment Error] Failed to extract valid URL for ${userId}. Result:`, JSON.stringify(result));
+      return ctx.reply('⚠️ Could not generate a secure payment link. Please try again or contact support.');
     }
 
     const messageText = `💳 <b>${pack.name} Pack — ₦${pack.price.toLocaleString()}</b>\n` +
