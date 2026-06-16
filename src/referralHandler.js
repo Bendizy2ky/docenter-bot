@@ -3,7 +3,7 @@ const { getNextMilestone } = require('./referralUtils');
 
 module.exports = (bot, shared) => {
   const { sendMarkdownSafe } = shared;
-  const BOT_USERNAME = process.env.BOT_USERNAME || 'DOCENTERb_bot';
+  const BOT_USERNAME = process.env.BOT_USERNAME || 'FileForgeBot';
 
   bot.command('refer', async (ctx) => {
     const userId = ctx.from.id.toString();
@@ -39,7 +39,7 @@ Your referral link:
 
 *Copy and share this:*
 ─────────────────────────────
-🤖 I use *DocCenter Bot* on Telegram!
+🤖 I use *FileForge Bot* on Telegram!
 
 It does things ChatGPT cannot do:
 ✅ Passport-ready photos in 60 seconds

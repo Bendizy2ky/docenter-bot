@@ -122,7 +122,7 @@ function startServer() {
           <div class="check">✅</div>
           <h1>Payment Successful!</h1>
           <p>Return to Telegram and check your balance. Your credits have been added automatically.</p>
-          <a class="button" href="https://t.me/DOCENTERb_bot">Return to DocCenter Bot ➜</a>
+          <a class="button" href="https://t.me/FileForgeBot">Return to FileForge Bot ➜</a>
         </div>
       </body>
       </html>

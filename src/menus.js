@@ -8,11 +8,11 @@
 const menus = {
 
   welcome: `
-💎 *DocCenter: Your Elite AI-Powered Document Studio*
+💎 *FileForge: Your Elite AI-Powered Document Studio*
 
 Transform your workflow with instant, high-performance tools designed for excellence. From professional AI analysis to studio-quality image editing, we deliver results in seconds.
 
-🚀 *The DocCenter Advantage:*
+🚀 *The FileForge Advantage:*
 • ✅ *AI Intelligence:* Summarize docs & rewrite CVs.
 • ✅ *Studio Visuals:* Background removal & Pro photos.
 • ✅ *Seamless Utility:* Compress, convert, & transcribe.
@@ -33,7 +33,7 @@ Earn 3 credits for every friend who joins.
 `,
 
   referralWelcome: `
-🎊 *Welcome to DocCenter!*
+🎊 *Welcome to FileForge!*
 
 You joined through a friend's referral!
 
@@ -53,7 +53,7 @@ Share your own link too: /refer
 `,
 
   normalWelcome: `
-🎊 *Welcome to DocCenter!*
+🎊 *Welcome to FileForge!*
 
 You have *10 FREE credits* to get started.
 No payment needed.
@@ -164,7 +164,7 @@ Credits never expire. Pay once, use anytime.
 
   // Sent when user types /help
   help: `
-❓ *How DocCenter Works*
+❓ *How FileForge Works*
 
 1. Choose a tool from the menu
 2. Send your file when asked
@@ -221,7 +221,7 @@ Please send a file in one of these formats: *${expected}*
         "Professional Passport Pack": "Your elite passport assets are ready. If you're preparing these for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
         doc_export: "Your document has been professionally formatted and delivered. To ensure your entire career profile is just as polished, try our /ai_cv_enhancer.",
         default: "Precision processing complete. Our elite suite of AI tools is designed to keep you ahead—type /start to explore our premium services.",
-        referral_promo: "🎁 *Want more free credits?* Invite friends to DocCenter! You get 3 credits for every friend who joins. Type /refer for your link."
+        referral_promo: "🎁 *Want more free credits?* Invite friends to FileForge! You get 3 credits for every friend who joins. Type /refer for your link."
       };
       return suggestions[tool] || suggestions.default;
     }

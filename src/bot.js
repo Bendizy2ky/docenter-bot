@@ -1,6 +1,6 @@
 // src/bot.js
 // ─────────────────────────────────────────────
-// The brain of DocCenter bot.
+// The brain of FileForge bot.
 // KEY FIXES in this version:
 // 1. "Processing..." message is DELETED after task completes or fails
 //    — users never see it stuck on screen
@@ -118,7 +118,7 @@ const LOW_CREDIT_THRESHOLD = 5;
 // Rate Limiter Storage
 const userLastRequests = new Map();
 
-const BOT_USERNAME = process.env.BOT_USERNAME || 'DocCenterBot';
+const BOT_USERNAME = process.env.BOT_USERNAME || 'FileForgeBot';
 
 // Safely escape Markdown characters
 function escapeMarkdown(text) {
@@ -343,7 +343,7 @@ async function startBot() {
     return next();
   });
 
-  console.log('DocCenter bot is starting...');
+  console.log('FileForge bot is starting...');
 
   // --- Maintenance: Temp File Scavenger ---
   const cleanupTempFiles = () => {
@@ -353,7 +353,7 @@ async function startBot() {
       const now = Date.now();
       files.forEach(file => {
         const filePath = path.join(tmpDir, file);
-        if (file.startsWith('docenter-') || file.startsWith('pdf2word-')) {
+        if (file.startsWith('fileforge-') || file.startsWith('pdf2word-')) {
           const stats = fs.statSync(filePath);
           if (now - stats.mtimeMs > 3600000) { // 1 hour old
             try { fs.rmSync(filePath, { recursive: true, force: true }); } catch(e) {}
@@ -610,7 +610,7 @@ async function startBot() {
         // Check Referral Completion
         const refRes = await completeReferral(userId);
         if (refRes.newUserBonus > 0) {
-          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* have been added!\n\nYour updated balance: *${refRes.newBalance}* credits\n\nEnjoy DocCenter! 😊`);
+          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* have been added!\n\nYour updated balance: *${refRes.newBalance}* credits\n\nEnjoy FileForge! 😊`);
         }
         if (refRes.referrerRewarded) {
           await notifyReferrer(refRes.referrerId, {
@@ -831,7 +831,7 @@ async function startBot() {
         ext = '.pdf';
       }
 
-      const fileName = `DocCenter_Elite_${Date.now()}${ext}`;
+      const fileName = `FileForge_Elite_${Date.now()}${ext}`;
       const caption = `✨ *Premium Export Complete*\n\nYour ${ext.toUpperCase()} has been professionally formatted.\n\nCredits used: ${exportCost}`;
       
       const sent = await safelySendFile(ctx, buffer, fileName, caption);
@@ -985,7 +985,7 @@ async function startBot() {
         // Check Referral Completion
         const refRes = await completeReferral(userId);
         if (refRes.newUserBonus > 0) {
-          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* have been added!\n\nYour updated balance: *${refRes.newBalance}* credits\n\nEnjoy DocCenter! 😊`);
+          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* have been added!\n\nYour updated balance: *${refRes.newBalance}* credits\n\nEnjoy FileForge! 😊`);
         }
         if (refRes.referrerRewarded) {
           await notifyReferrer(refRes.referrerId, {
@@ -1204,7 +1204,7 @@ async function startBot() {
         // Ensure Telegram is reachable by calling getMe with a short timeout
         await bot.telegram.getMe();
         await bot.launch({ dropPendingUpdates: true });
-        console.log('✅ DocCenter bot is running! Open Telegram and send /start to your bot.');
+        console.log('✅ FileForge bot is running! Open Telegram and send /start to your bot.');
         try { startBackgroundWorker(); } catch (e) { console.error('Failed to start background worker:', e.message); }
         return true;
       } catch (err) {
@@ -1237,7 +1237,7 @@ async function startBot() {
 
     try {
         await bot.launch({ webhook: { domain: webhookUrl, port, hookPath } });
-        console.log('✅ DocCenter bot is running in webhook mode!');
+        console.log('✅ FileForge bot is running in webhook mode!');
         console.log(`Webhook URL: ${webhookUrl}${hookPath}`);
         try { startBackgroundWorker(); } catch (e) { console.error('Failed to start background worker:', e.message); }
       } catch (err) {

@@ -40,7 +40,7 @@ async function generatePaymentLink(telegramId, packKey) {
 
     // Create a unique reference for this transaction
     // Format: telegramId_packKey_timestamp
-    const reference = `docenter_${telegramId}_${packKey}_${Date.now()}`;
+    const reference = `fileforge_${telegramId}_${packKey}_${Date.now()}`;
 
     // Build payload for Paystack initialize. Optionally include a callback_url
     // so users are redirected back to our app after payment.
@@ -50,7 +50,7 @@ async function generatePaymentLink(telegramId, packKey) {
 
     const payload = {
       amount: amountInKobo,
-      email: `user${telegramId}@docenter.ng`, // Paystack requires an email
+      email: `user${telegramId}@fileforge.ng`, // Paystack requires an email
       reference: reference,
       currency: 'NGN',
       metadata: {
