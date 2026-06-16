@@ -919,7 +919,10 @@ async function startBot() {
 
     const result = await generatePaymentLink(userId, packKey);
 
-    if (!result.success) {
+    // Paystack usually returns 'authorization_url'. We check both to be safe.
+    const checkoutUrl = result.url || result.authorization_url || (result.data && result.data.authorization_url);
+
+    if (!result.success || !checkoutUrl) {
       return ctx.reply('⚠️ Could not generate payment link. Please try again.');
     }
 
@@ -934,7 +937,7 @@ async function startBot() {
           [
             {
               text: "🛍️ Pay Securely Now",
-              web_app: { url: result.url }
+              web_app: { url: checkoutUrl }
             }
           ]
         ]
