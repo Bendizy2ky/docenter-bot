@@ -6,9 +6,9 @@ module.exports = (bot, shared) => {
 
   // --- COMMANDS ---
 
-  bot.command('photo_fix', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'photo_fix' });
-    sendMarkdownSafe(ctx, `✨ *Complete Photo Fix — 3 credits*\n\nSend me any photo and I will automatically enhance, sharpen and improve the quality.\n\n📸 Send your photo now.`);
+  bot.command('image_enhancer', (ctx) => {
+    userState.set(ctx.from.id.toString(), { tool: 'image_enhancer' });
+    sendMarkdownSafe(ctx, `✨ *AI Image Enhancer — 3 credits*\n\nSend me any photo and I will use our premium AI engine to restore clarity, enhance colors, and optimize lighting.\n\n📸 Send your photo now.`);
   });
 
   bot.command('passportphoto_pack', async (ctx) => {
@@ -75,15 +75,15 @@ module.exports = (bot, shared) => {
   // --- LOGIC PROCESSOR ---
 
   return {
-    canHandle: (tool) => ['photo_fix', 'passportphoto_pack', 'business_photo_pack'].includes(tool),
+    canHandle: (tool) => ['image_enhancer', 'passportphoto_pack', 'business_photo_pack'].includes(tool),
     process: async (ctx, tool, fileBuffer, fileName, mimeType, state, extendedShared) => {
       const { safelySendFile, balance, cost, deleteProcessingMessage, fileId } = extendedShared;
       const userId = ctx.from.id.toString();
 
-      if (tool === 'photo_fix') {
+      if (tool === 'image_enhancer') {
         const res = await enhanceImage(fileBuffer);
         if (!res.success) throw new Error(res.error);
-        const sent = await safelySendFile(ctx, res.buffer, `fixed_${fileName}`, `✅ *Photo Fix Complete!*\n\nCredits remaining: *${balance - cost}*`);
+        const sent = await safelySendFile(ctx, res.buffer, `enhanced_${fileName}`, `✅ *Image Enhancement Complete!*\n\nPowered by FileForge Pro AI\n\nCredits remaining: *${balance - cost}*`);
         return { sent, buffer: res.buffer };
       }
 

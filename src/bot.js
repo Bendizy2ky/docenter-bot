@@ -48,7 +48,7 @@ const TOOL_COSTS = {
   ai_summarize:       5,
   cv_enhance:         10,
   ai_image_generator: 2,
-  photo_fix:          3,
+  image_enhancer:     3,
   passportphoto_pack: 6,
   business_photo_pack: 8,
   create_print_grid:   2,
@@ -70,7 +70,7 @@ const ALLOWED_MIMES = {
   apply_background:   ['image/jpeg', 'image/png', 'image/webp'],
   passport_photo:     ['image/jpeg', 'image/png', 'image/webp'],
   convert_image:      ['image/jpeg', 'image/png', 'image/webp'],
-  photo_fix:          ['image/jpeg', 'image/png', 'image/webp'],
+  image_enhancer:     ['image/jpeg', 'image/png', 'image/webp'],
   passportphoto_pack: ['image/jpeg', 'image/png', 'image/webp'],
   apply_background:   ['image/jpeg', 'image/png', 'image/webp']
 };
@@ -93,7 +93,7 @@ function verifyFileSignature(buffer, tool) {
   if (tool === 'docx_to_pdf') return isZip;
   if (['ai_summarize', 'cv_enhance'].includes(tool)) return isPdf || isZip;
   
-  if (['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'photo_fix', 'apply_background', 'passportphoto_pack', 'business_photo_pack'].includes(tool)) {
+  if (['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'image_enhancer', 'apply_background', 'passportphoto_pack', 'business_photo_pack'].includes(tool)) {
     return isJpeg || isPng || isWebp;
   }
 
@@ -489,12 +489,6 @@ async function startBot() {
     sendMarkdownSafe(ctx, menus.image, userId, true);
   });
 
-  // ── /packs ──────────────────────────────────
-  bot.command('packs', (ctx) => {
-    const userId = ctx.from.id.toString();
-    userState.delete(userId);
-    sendMarkdownSafe(ctx, menus.packsMenu, userId, true);
-  });
 
   // ── /credits ────────────────────────────────
   bot.command('credits', (ctx) => {
@@ -973,7 +967,7 @@ async function startBot() {
 
     if (['ai_summarize', 'cv_enhance'].includes(state.tool)) {
       toolLimitMB = 5; 
-    } else if (['compress_image', 'remove_background', 'passport_photo', 'apply_background', 'convert_image', 'photo_fix'].includes(state.tool)) {
+    } else if (['compress_image', 'remove_background', 'passport_photo', 'apply_background', 'convert_image', 'image_enhancer'].includes(state.tool)) {
       toolLimitMB = 5; 
     } else if (state.tool === 'transcribe_audio') {
       toolLimitMB = 10;
@@ -1218,8 +1212,8 @@ async function startBot() {
           '_No credits deducted._'
         , userId, true);
       }
-      if (cmd === 'photo_fix' || cmd === 'photofix') {
-        userState.set(userId, { tool: 'photo_fix' });
+      if (cmd === 'image_enhancer' || cmd === 'imageenhancer') {
+        userState.set(userId, { tool: 'image_enhancer' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *photo* you want me to enhance. (Max 5MB)'), userId, true);
       }
       if (cmd === 'passportphoto_pack' || cmd === 'passport_photo_pack') {

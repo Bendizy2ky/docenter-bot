@@ -24,8 +24,7 @@ Transform your workflow with instant, high-performance tools designed for excell
 📄 **Document Suite** — /pdf
 🖼 **Image Studio** — /image
 🎙 **Audio Hub** — /audio
-📦 **Premium Packs** — /packs
-💳 **Get Credits** — /credits
+ **Get Credits** — /credits
 ❓ **Support** — /help
 
 *Want more free credits?* Share your referral link: /refer
@@ -112,17 +111,11 @@ Choose a tool:
 3️⃣ /apply_background — Replace with white/red/blue background (3 credits)
 4️⃣ /passport_photo — Make a passport photo (3 credits)
 5️⃣ /convert_image — Convert image formats (jpg ↔ png, webp) (1 credit)
+6️⃣ /image_enhancer — AI Photo Enhancement (Premium) (3 credits)
+7️⃣ /passportphoto_pack — Premium Passport + Print Sheet (6 credits)
 
 💡 Each tool costs credits.
 Type /credits to buy credits.
-`,
-
-  packsMenu: `
-📦 *Photo Packs*
-Get more done with a single automated process.
-
-✨ /photo_fix — Auto-enhance any photo (3 credits)
-📋 /passportphoto_pack — Premium Passport + Optional Print Sheet (6 credits)
 `,
 
     // Sent when user types /audio
@@ -219,8 +212,8 @@ Please send a file in one of these formats: *${expected}*
         passport_photo: "Excellence delivered! Your passport photo looks great. To make it absolutely perfect for official embassy or corporate use, would you like to add a professional *White, Blue, or Red* background? For just *3 credits*, we'll ensure it meets every requirement with a studio finish. Give it a try: /apply_background",
         transcribe_audio: "Transcription finalized. For a high-level briefing on these notes, our /summarize tool is just one click away.",
         "PassportPhoto Pack": "Your elite passport is ready. If you're preparing for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
+        image_enhancer: "Visuals refined with FileForge Pro AI. Your photo now meets professional studio standards.",
         doc_export: "Your document has been professionally formatted and delivered. To ensure your entire career profile is just as polished, try our /ai_cv_enhancer.",
-        default: "Precision processing complete. Our elite suite of AI tools is designed to keep you ahead—type /start to explore our premium services.",
         referral_promo: "🎁 *Want more free credits?* Invite friends to FileForge! You get 3 credits for every friend who joins. Type /refer for your link."
       };
       return suggestions[tool] || suggestions.default;

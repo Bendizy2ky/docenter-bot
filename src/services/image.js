@@ -9,6 +9,13 @@
 const axios = require('axios');
 const sharp = require('sharp');
 const FormData = require('form-data');
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // ─────────────────────────────────────────────
 // Passport Photo Size Definitions
@@ -305,26 +312,44 @@ function parseColor(colorString) {
  * Automatically improves image quality by adjusting contrast,
  * saturation, and sharpness.
  */
-async function enhanceImage(buffer) {
-  try {
-    const enhanced = await sharp(buffer)
-      .rotate() // Auto-fix orientation
-      .clahe({ width: 50, height: 50, maxSlope: 3 }) // Refined Tone Mapping
-      .modulate({
-        brightness: 1.0,
-        saturation: 1.05, // Subtle, natural skin tones
-      })
-      .sharpen({ 
-        sigma: 0.4, // Natural sharpness, not "digital" looking
-        m1: 0.1,
-        m2: 8 
-      })
-      .toBuffer();
-    return { success: true, buffer: enhanced };
-  } catch (error) {
-    console.error('Enhance image error:', error.message);
-    return { success: false, error: 'Failed to enhance image.' };
-  }
+async function enhanceImage(fileBuffer) {
+  return new Promise((resolve) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        transformation: [
+          { effect: "improve:70" }, // Cloudinary AI Enhancement
+          { effect: "gamma:100" },
+          { effect: "unsharp_mask:60" }
+        ],
+        folder: "fileforge_enhancements"
+      },
+      async (error, result) => {
+        if (error) {
+          console.error('Cloudinary upload error:', error);
+          return resolve({ success: false, error: 'Failed to upload to enhancement engine.' });
+        }
+
+        try {
+          // Fetch the enhanced image back as a buffer
+          const response = await axios.get(result.secure_url, {
+            responseType: 'arraybuffer',
+            timeout: 30000
+          });
+          
+          resolve({
+            success: true,
+            buffer: Buffer.from(response.data),
+            url: result.secure_url
+          });
+        } catch (downloadErr) {
+          console.error('Failed to download enhanced image:', downloadErr.message);
+          resolve({ success: false, error: 'Failed to retrieve enhanced image.' });
+        }
+      }
+    );
+
+    uploadStream.end(fileBuffer);
+  });
 }
 
 /**
