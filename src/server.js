@@ -75,7 +75,7 @@ function startServer() {
 
       if (telegramId && creditsToAdd > 0) {
         try {
-          const newBal = addCredits(String(telegramId), creditsToAdd);
+          const newBal = await addCredits(String(telegramId), creditsToAdd);
           // Notify user on Telegram
           if (process.env.TELEGRAM_BOT_TOKEN) {
             const text = `✅ Payment confirmed! ${creditsToAdd} credits have been added.\nYour new balance: ${newBal} credits.\nType /start to continue.`;
@@ -107,6 +107,7 @@ function startServer() {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <title>Payment Successful</title>
         <style>
           body { font-family: Arial, Helvetica, sans-serif; background: #f6f9fb; color: #111; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
@@ -114,7 +115,7 @@ function startServer() {
           .check { font-size:48px; color:#16a34a; }
           h1 { margin:12px 0; font-size:20px; }
           p { color:#374151; }
-          a.button { display:inline-block; margin-top:16px; padding:10px 18px; background:#2563eb; color:#fff; border-radius:8px; text-decoration:none; }
+          .button { display:inline-block; margin-top:16px; padding:12px 24px; background:#2563eb; color:#fff; border-radius:8px; text-decoration:none; border:none; font-weight:bold; cursor:pointer; font-size:16px; }
         </style>
       </head>
       <body>
@@ -122,8 +123,20 @@ function startServer() {
           <div class="check">✅</div>
           <h1>Payment Successful!</h1>
           <p>Return to Telegram and check your balance. Your credits have been added automatically.</p>
-          <a class="button" href="https://t.me/FileForgeBot">Return to FileForge Bot ➜</a>
+          <button class="button" onclick="closeApp()">Return to Bot ➜</button>
         </div>
+        <script>
+          const tg = window.Telegram.WebApp;
+          tg.ready();
+          tg.expand();
+          
+          function closeApp() {
+            tg.close();
+          }
+          
+          // Auto-close after 5 seconds to get the user back to the chat
+          setTimeout(() => { tg.close(); }, 5000);
+        </script>
       </body>
       </html>
     `;

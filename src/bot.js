@@ -923,11 +923,23 @@ async function startBot() {
       return ctx.reply('⚠️ Could not generate payment link. Please try again.');
     }
 
-    await sendMarkdownSafe(ctx,
-      `💳 *${pack.name} Pack — ₦${pack.price.toLocaleString()}*\n` +
-      `You will receive *${pack.credits} credits*.\n\n` +
-      `👉 Tap here to pay securely\n\n` +
-      `_Credits are added automatically after payment._`, userId, true);
+    const messageText = `💳 <b>${pack.name} Pack — ₦${pack.price.toLocaleString()}</b>\n` +
+                        `You will receive <b>${pack.credits} credits</b>.\n\n` +
+                        `Please tap the button below to pay securely via Paystack. Credits are added automatically after payment.`;
+
+    return ctx.reply(messageText, {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "🛍️ Pay Securely Now",
+              web_app: { url: result.url }
+            }
+          ]
+        ]
+      }
+    });
   }
 
   bot.command('buy_starter',  (ctx) => handleBuyPack(ctx, 'starter'));
