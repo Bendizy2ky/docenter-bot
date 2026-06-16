@@ -211,7 +211,7 @@ Please send a file in one of these formats: *${expected}*
         passport_photo: "Excellence delivered! Your passport photo looks great. To make it absolutely perfect for official embassy or corporate use, would you like to add a professional *White, Blue, or Red* background? For just *3 credits*, we'll ensure it meets every requirement with a studio finish. Give it a try: /apply_background",
         transcribe_audio: "Transcription finalized. For a high-level briefing on these notes, our /summarize tool is just one click away.",
         "PassportPhoto Pack": "Your elite passport is ready. If you're preparing for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
-        image_enhancer: "Visuals refined with FileForge Pro AI. Your photo now meets professional studio standards.",
+        image_enhancer: "Visuals reconstructed and refined with Generative Pro AI. Your photo now meets elite studio standards.",
         doc_export: "Your document has been professionally formatted and delivered. To ensure your entire career profile is just as polished, try our /ai_cv_enhancer.",
         referral_promo: "🎁 *Want more free credits?* Invite friends to FileForge! You get 3 credits for every friend who joins. Type /refer for your link."
       };

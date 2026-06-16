@@ -8,7 +8,7 @@ module.exports = (bot, shared) => {
 
   bot.command('image_enhancer', (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'image_enhancer' });
-    sendMarkdownSafe(ctx, `✨ *AI Image Enhancer — 3 credits*\n\nSend me any photo and I will use our premium AI engine to restore clarity, enhance colors, and optimize lighting.\n\n📸 Send your photo now.`);
+    sendMarkdownSafe(ctx, `✨ *Pro AI Image Enhancer — 3 credits*\n\nSend me any photo. I will use **Generative AI Restoration** to reconstruct lost details, smooth skin textures, and optimize lighting for a professional studio finish.\n\n📸 Send your photo now.`);
   });
 
   bot.command('passportphoto_pack', async (ctx) => {
@@ -83,7 +83,7 @@ module.exports = (bot, shared) => {
       if (tool === 'image_enhancer') {
         const res = await enhanceImage(fileBuffer);
         if (!res.success) throw new Error(res.error);
-        const sent = await safelySendFile(ctx, res.buffer, `enhanced_${fileName}`, `✅ *Image Enhancement Complete!*\n\nPowered by FileForge Pro AI\n\nCredits remaining: *${balance - cost}*`);
+        const sent = await safelySendFile(ctx, res.buffer, `enhanced_${fileName}`, `✅ *Elite Restoration Complete!*\n\nProcessed with FileForge Generative AI engine\n\nCredits remaining: *${balance - cost}*`);
         return { sent, buffer: res.buffer };
       }
 

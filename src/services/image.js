@@ -321,9 +321,10 @@ async function enhanceImage(fileBuffer) {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         transformation: [
-          { effect: "improve:70" }, // Cloudinary AI Enhancement
-          { effect: "gamma:100" },
-          { effect: "unsharp_mask:60" }
+          { effect: "gen_restore" },       // Reconstructs detail & removes noise using Generative AI
+          { effect: "improve" },           // Balances lighting and intelligent contrast
+          { effect: "vibrance:25" },       // Adds professional "pop" to colors without washing out skin
+          { quality: "auto" }              // Ensures the final file is optimized for high-end viewing
         ],
         folder: "fileforge_enhancements",
         resource_type: "image"
