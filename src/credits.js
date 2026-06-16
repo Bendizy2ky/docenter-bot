@@ -36,6 +36,7 @@ async function queueSave(obj) {
 // Read credits.json from disk. Returns an object mapping userId -> number
 function loadCredits() {
   try {
+    if (creditsCache) return creditsCache;
     if (!fs.existsSync(FILE)) return {};
     const raw = fs.readFileSync(FILE, 'utf8');
     const data = JSON.parse(raw || '{}');
@@ -136,11 +137,15 @@ async function addCredits(userId, amount) {
     });
 }
 
-async function deductCredits(userId, amount) {
+async function deductCredits(userId, amount, toolName = null) {
     return atomicUpdate(userId, (user) => {
         const cost = Number(amount);
         if (user.credits < cost) throw new Error("Insufficient credits");
         user.credits -= cost;
+        if (toolName) {
+          if (!user.toolUsage) user.toolUsage = {};
+          user.toolUsage[toolName] = (user.toolUsage[toolName] || 0) + 1;
+        }
         return user.credits;
     });
 }
@@ -324,6 +329,47 @@ async function getReferralStats(userId) {
   };
 }
 
+/**
+ * Returns global usage stats for admin
+ */
+async function getGlobalStats() {
+  const all = loadCredits();
+  const now = new Date();
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
+  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+  const userIds = Object.keys(all);
+  let total = userIds.length;
+  let daily = 0;
+  let weekly = 0;
+  let active = 0;
+  let toolUsageAggregated = {};
+
+  userIds.forEach(id => {
+    const u = all[id];
+    if (typeof u === 'object') {
+      if (u.joinedAt) {
+        const joinDate = new Date(u.joinedAt);
+        if (joinDate > dayAgo) daily++;
+        if (joinDate > weekAgo) weekly++;
+      }
+      
+      if (u.firstToolUsed) active++;
+
+      if (u.toolUsage) {
+        for (const [tool, count] of Object.entries(u.toolUsage)) {
+          toolUsageAggregated[tool] = (toolUsageAggregated[tool] || 0) + count;
+        }
+      }
+    }
+  });
+
+  const rankedTools = Object.entries(toolUsageAggregated)
+    .sort(([, a], [, b]) => b - a);
+
+  return { total, daily, weekly, active, rankedTools };
+}
+
 module.exports = {
   loadCredits,
   saveCredits,
@@ -335,5 +381,6 @@ module.exports = {
   findUserByReferralCode,
   registerReferral,
   completeReferral,
-  getReferralStats
+  getReferralStats,
+  getGlobalStats
 };

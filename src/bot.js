@@ -107,7 +107,8 @@ function verifyFileSignature(buffer, tool) {
 // ─────────────────────────────────────────────
 const { 
   getCredits, addCredits, deductCredits, 
-  registerReferral, completeReferral 
+  registerReferral, completeReferral,
+  getGlobalStats
 } = require('./credits');
 const userState = require('./state');
 // Tracks the processing message id for each user so global errors can clear it
@@ -575,6 +576,29 @@ async function startBot() {
     ctx.reply(`📊 Active sessions: ${userState.getActiveCount ? userState.getActiveCount() : 'N/A'}`);
   });
 
+  bot.command('stats', async (ctx) => {
+    const adminId = process.env.ADMIN_TELEGRAM_ID;
+    if (!adminId || ctx.from.id.toString() !== adminId.toString()) return;
+
+    const stats = await getGlobalStats();
+    let message = `📊 *FileForge Bot Stats*\n\n` +
+      `💎 *Total Users:* ${stats.total}\n` +
+      `� *Active Users (Used Tools):* ${stats.active}\n\n` +
+      `🆕 *New Users (Last 24h):* ${stats.daily}\n` +
+      `📅 *New Users (Last 7d):* ${stats.weekly}\n`;
+
+    if (stats.rankedTools && stats.rankedTools.length > 0) {
+      message += `\n🛠 *Most Used Tools (All Time):*\n`;
+      stats.rankedTools.forEach(([tool, count], index) => {
+        message += `${index + 1}. <code>${tool}</code>: ${count}\n`;
+      });
+    }
+
+    message += `\n_Stats are derived from the current credits database._`;
+
+    await sendMarkdownSafe(ctx, message, adminId, false);
+  });
+
   bot.command('continue', async (ctx) => {
     const userId = ctx.from.id.toString();
     const state = userState.get(userId);
@@ -605,7 +629,7 @@ async function startBot() {
 
       await deleteProcessingMessage(ctx, msg.message_id);
       if (result.sent) {
-        const finalBalance = await deductCredits(userId, cost);
+        const finalBalance = await deductCredits(userId, cost, state.tool);
         
         // Check Referral Completion
         const refRes = await completeReferral(userId);
@@ -836,7 +860,7 @@ async function startBot() {
       
       const sent = await safelySendFile(ctx, buffer, fileName, caption);
       if (sent) {
-        const remaining = await deductCredits(userId, exportCost);
+        const remaining = await deductCredits(userId, exportCost, 'doc_export');
         await ctx.telegram.deleteMessage(ctx.chat.id, editMsg.message_id);
         await sendMarkdownSafe(ctx, menus.success('doc_export', remaining), userId, true);
         userState.delete(userId);
@@ -980,7 +1004,7 @@ async function startBot() {
       await deleteProcessingMessage(ctx, msg.message_id);
 
       if (result.sent) {
-        const finalBalance = await deductCredits(userId, cost);
+        const finalBalance = await deductCredits(userId, cost, state.tool);
 
         // Check Referral Completion
         const refRes = await completeReferral(userId);
