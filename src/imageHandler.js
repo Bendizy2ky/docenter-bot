@@ -65,20 +65,8 @@ module.exports = (bot, shared) => {
     });
   });
 
-  bot.command('enhance', (ctx) => {
-    sendMarkdownSafe(ctx, 
-      `✨ *Image Enhancement*\n\n` +
-      `Tap /photo_fix to sharpen and improve the color quality of your photo.`
-    );
-  });
-
-  bot.command('basic_enhance', (ctx) => {
-    userState.set(ctx.from.id.toString(), { tool: 'photo_fix' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send your *photo* for auto-enhancement.`));
-  });
-
   return {
-    canHandle: (tool) => ['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'apply_background', 'basic_enhance', 'photo_fix', 'create_print_grid'].includes(tool),
+    canHandle: (tool) => ['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'apply_background', 'create_print_grid'].includes(tool),
     process: async (ctx, tool, fileBuffer, fileName, mimeType, state, extendedShared) => {
       const { safelySendFile, balance, cost } = extendedShared;
 
@@ -136,13 +124,6 @@ module.exports = (bot, shared) => {
           `Credits used: ${TOOL_COSTS.apply_background}\nCredits remaining: *${balance - cost}*`
         );
         return { sent, buffer: finalImageResult.buffer };
-      }
-
-      if (tool === 'basic_enhance' || tool === 'photo_fix') {
-        const res = await enhanceImage(fileBuffer);
-        if (!res.success) throw new Error('Basic enhancement failed');
-        const sent = await safelySendFile(ctx, res.buffer, `enhanced_${fileName}`, `✅ *Basic Enhancement Complete!*`);
-        return { sent, buffer: res.buffer };
       }
     }
   };
