@@ -569,11 +569,11 @@ async function startBot() {
     ctx.reply(`✅ Added ${amount} to ${targetId}. New balance: ${newBal}`);
   });
 
-  bot.command('sessions', (ctx) => {
+  bot.command(['sessions', 'session'], (ctx) => {
     const adminId = process.env.ADMIN_TELEGRAM_ID;
     if (ctx.from.id.toString() !== adminId) return;
     
-    ctx.reply(`📊 Active sessions: ${userState.getActiveCount ? userState.getActiveCount() : 'N/A'}`);
+    ctx.reply(`📊 Current In-Memory Sessions: ${userState.getActiveCount ? userState.getActiveCount() : 'N/A'}`);
   });
 
   bot.command('stats', async (ctx) => {
@@ -581,11 +581,23 @@ async function startBot() {
     if (!adminId || ctx.from.id.toString() !== adminId.toString()) return;
 
     const stats = await getGlobalStats();
+    const conversionRate = stats.total > 0 ? ((stats.active / stats.total) * 100).toFixed(1) : 0;
+
     let message = `📊 *FileForge Bot Stats*\n\n` +
-      `💎 *Total Users:* ${stats.total}\n` +
-      `� *Active Users (Used Tools):* ${stats.active}\n\n` +
+      `👥 *Total Registered (Visitors):* ${stats.total}\n` +
+      `✅ *Converted Users (Active):* ${stats.active} (${conversionRate}%)\n\n` +
       `🆕 *New Users (Last 24h):* ${stats.daily}\n` +
       `📅 *New Users (Last 7d):* ${stats.weekly}\n`;
+
+    message += `\n🎁 *Referral Growth:*\n` +
+      `📈 *Total Successful Referrals:* ${stats.totalReferrals}\n`;
+
+    if (stats.topReferrers && stats.topReferrers.length > 0) {
+      message += `🏆 *Top Referrers:*\n`;
+      stats.topReferrers.forEach((ref, i) => {
+        message += `${i + 1}. <code>${ref.id}</code> — ${ref.count} invites\n`;
+      });
+    }
 
     if (stats.rankedTools && stats.rankedTools.length > 0) {
       message += `\n🛠 *Most Used Tools (All Time):*\n`;

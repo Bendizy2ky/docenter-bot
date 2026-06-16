@@ -343,6 +343,8 @@ async function getGlobalStats() {
   let daily = 0;
   let weekly = 0;
   let active = 0;
+  let totalReferrals = 0;
+  let referrersList = [];
   let toolUsageAggregated = {};
 
   userIds.forEach(id => {
@@ -355,6 +357,11 @@ async function getGlobalStats() {
       }
       
       if (u.firstToolUsed) active++;
+      
+      if (u.referralCount > 0) {
+        totalReferrals += u.referralCount;
+        referrersList.push({ id, count: u.referralCount });
+      }
 
       if (u.toolUsage) {
         for (const [tool, count] of Object.entries(u.toolUsage)) {
@@ -367,7 +374,11 @@ async function getGlobalStats() {
   const rankedTools = Object.entries(toolUsageAggregated)
     .sort(([, a], [, b]) => b - a);
 
-  return { total, daily, weekly, active, rankedTools };
+  const topReferrers = referrersList
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  return { total, daily, weekly, active, rankedTools, totalReferrals, topReferrers };
 }
 
 module.exports = {
