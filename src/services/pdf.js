@@ -243,16 +243,13 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
 
     // Try several possible iLovePDF task types — APIs sometimes change names.
     // Prefer the most commonly available tasks first to avoid 404s.
-    const candidateTasks = ['pdfword', 'pdf2word'];
+    const candidateTasks = ['pdfword', 'pdf2word', 'pdfworddoc'];
     let lastErr = null;
     for (const taskType of candidateTasks) {
       try {
         const { server, taskId } = await startTask(token, taskType);
         const serverFilename = await uploadFile(token, server, taskId, fileBuffer, fileName);
-        const wordBuffer = await processAndDownload(
-          token, server, taskId, serverFilename, taskType,
-          { output_format: 'docx' }
-        );
+        const wordBuffer = await processAndDownload(token, server, taskId, serverFilename, taskType);
 
         // Verify the returned buffer looks like a DOCX (ZIP)
         if (!isZipBuffer(wordBuffer)) {
@@ -272,7 +269,8 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
         const data = err?.response?.data;
         const url = err?.config?.url || '(unknown url)';
         console.warn(`pdfToWord: taskType=${taskType} failed:`, status || err.message, url, data || '');
-        if (status && status === 404) {
+        // If the tool name is invalid (404) or bad request (400), try the next candidate
+        if (status && (status === 404 || status === 400)) {
           continue; // try next taskType
         }
         // For other errors, break and surface the error
@@ -281,7 +279,7 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
     }
 
     // If iLovePDF attempts failed, try a local LibreOffice (soffice) fallback if available
-    console.warn('iLovePDF PDF→Word attempts failed.');
+    console.warn('All iLovePDF PDF→Word candidates failed initialization.');
     if (isSofficeAvailable()) {
       console.warn('Local LibreOffice detected — attempting fallback conversion...');
       try {
