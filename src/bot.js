@@ -1167,8 +1167,7 @@ async function startBot() {
     } catch (e) {
       console.error('Core Process Error:', e);
       if (msgId) await deleteProcessingMessage(ctx, msgId);
-      const toolFriendly = (state.tool || 'request').replace(/_/g, ' ');
-      await ctx.reply(`⚠️ Sorry, I encountered an error while processing your ${toolFriendly}. Please try again.`);
+      await ctx.reply(`⚠️ ${e.message || 'An unexpected error occurred. Please try again or contact support.'}`);
       userState.delete(userId);
     }
   }

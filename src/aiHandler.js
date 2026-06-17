@@ -82,12 +82,12 @@ module.exports = (bot, shared) => {
         throw new Error(err.message.includes('15 pages') ? err.message : 'Failed to extract text from your file. Please ensure the document is not corrupted or encrypted.');
       }
 
-      // Increase character limit to match the "15 pages" promise in the UI (~3k chars per page)
-      if (extractedText.length > 50000) {
-        throw new Error('This document is too large for AI analysis (over 15-20 pages). Please try a shorter version.');
+      // Increase character limit to match the "15 pages" promise in the UI
+      if (extractedText.length > 100000) {
+        throw new Error('This document is too large for AI analysis (exceeds our 15-20 page limit). Please try a shorter version.');
       }
 
-      const textToProcess = extractedText.trim().slice(0, 45000);
+      const textToProcess = extractedText.trim().slice(0, 95000);
       if (!textToProcess) {
         throw new Error('The document appears to be empty or its text could not be read.');
       }
