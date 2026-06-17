@@ -1176,7 +1176,23 @@ async function startBot() {
     const userId = ctx.from.id.toString();
     const state = userState.get(userId);
     if (!state) return sendMarkdownSafe(ctx, 'Please choose a tool first.\n\nType /pdf for PDF tools or /image for image tools.');
-    
+
+    // Proactive File Size Check: Inform the user before downloading
+    const photoArr = ctx.message.photo;
+    const fileSize = ctx.message.document?.file_size || 
+                     ctx.message.audio?.file_size || 
+                     ctx.message.voice?.file_size || 
+                     (photoArr ? photoArr[photoArr.length - 1].file_size : 0) || 0;
+
+    let limitMB = 10; // Default limit for documents and audio
+    if (['ai_summarize', 'ai_cv_enhancer', 'compress_image', 'remove_background', 'passport_photo', 'apply_background', 'convert_image', 'image_enhancer', 'passportphoto_pack', 'business_photo_pack'].includes(state.tool)) {
+      limitMB = 5; // Stricter limit for AI and Images
+    }
+
+    if (fileSize > limitMB * 1024 * 1024) {
+      return sendMarkdownSafe(ctx, menus.fileTooLarge(limitMB), userId, true);
+    }
+
     const mimeType = ctx.message.document?.mime_type || 
                      ctx.message.audio?.mime_type || 
                      ctx.message.voice?.mime_type || 

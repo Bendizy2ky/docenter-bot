@@ -7,12 +7,12 @@ module.exports = (bot, shared) => {
 
   bot.command(['summarize', 'ai_summarise', 'ai_summarize'], (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'ai_summarize' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send the *document* you want me to summarize. (Best for documents up to 15 pages, Max 5MB)\n\nCost: ${TOOL_COSTS.ai_summarize} credits`));
+    sendMarkdownSafe(ctx, menus.awaitingFile(`Please send the *document* you want me to summarize. (Best for documents up to 6 pages, Max 5MB)\n\nCost: ${TOOL_COSTS.ai_summarize} credits`));
   });
 
   bot.command(['ai_cv_enhancer'], (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'ai_cv_enhancer' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Send your *CV (PDF or Word)* for professional enhancement. (Max 5 pages recommended, Max 5MB)\n\nCost: ${TOOL_COSTS.ai_cv_enhancer} credits`));
+    sendMarkdownSafe(ctx, menus.awaitingFile(`Send your *CV (PDF or Word)* for professional enhancement. (Max 5 pages, Max 5MB)\n\nCost: ${TOOL_COSTS.ai_cv_enhancer} credits`));
   });
 
   bot.command('generate_image', async (ctx) => {
@@ -64,8 +64,8 @@ module.exports = (bot, shared) => {
         if (mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
           const data = await pdfParse(fileBuffer);
           // Detect page count to prevent API over-usage
-          if (data.numpages > 15) {
-            throw new Error(`This PDF has ${data.numpages} pages. To ensure high quality, I can only summarize documents up to 15 pages.`);
+          if (data.numpages > 6) {
+            throw new Error(`This PDF has ${data.numpages} pages. Due to current AI service limits, I can process documents up to 6 pages. Please try a shorter version.`);
           }
           extractedText = data.text;
         } else if (
@@ -79,15 +79,15 @@ module.exports = (bot, shared) => {
         }
       } catch (err) {
         console.error('Text extraction error:', err.message);
-        throw new Error(err.message.includes('15 pages') ? err.message : 'Failed to extract text from your file. Please ensure the document is not corrupted or encrypted.');
+        throw new Error(err.message.includes('pages') ? err.message : 'Failed to extract text from your file. Please ensure the document is not corrupted or encrypted.');
       }
 
-      // Increase character limit to match the "15 pages" promise in the UI
-      if (extractedText.length > 100000) {
-        throw new Error('This document is too large for AI analysis (exceeds our 15-20 page limit). Please try a shorter version.');
+      // Character limit adjusted to stay within Groq TPM limits (6000 tokens ceiling)
+      if (extractedText.length > 20000) {
+        throw new Error('This document is too large for AI analysis (exceeds approx 6 pages). Please try a shorter version.');
       }
 
-      const textToProcess = extractedText.trim().slice(0, 95000);
+      const textToProcess = extractedText.trim().slice(0, 15000);
       if (!textToProcess) {
         throw new Error('The document appears to be empty or its text could not be read.');
       }
@@ -105,7 +105,7 @@ module.exports = (bot, shared) => {
               }
             ],
             temperature: 0.7,
-            max_tokens: 2000,
+            max_tokens: 1500,
           },
           {
             headers: {
