@@ -172,7 +172,7 @@ Credits never expire. Pay once, use anytime.
 /refer — Refer friends & earn credits
 /help — This message
 
-📞 *Need help?* Message @Anene1
+📞 *Need help?* Message @FileForgeHelpDesk_bot
 `,
 
   // Sent when a user does not have enough credits
@@ -229,7 +229,7 @@ Please send a file in one of these formats: *${expected}*
   error: (tool) => `
 ⚠️ Something went wrong while processing your *${tool}*.
 
-Please try again. If the problem continues, message @Anene1 for help.
+Please try again. If the problem continues, message @FileForgeHelpDesk_bot for help.
 `,
 
   // Sent when the user's file is being processed

@@ -59,7 +59,7 @@ async function processQueueOnce() {
 
         // Unrecoverable error: notify user and remove job
         try {
-          await sendMessage(job.chatId, `❌ We couldn't transcribe your queued file. Please try sending it again later. If this keeps happening, message @Anene1 for help.`);
+          await sendMessage(job.chatId, `❌ We couldn't transcribe your queued file. Please try sending it again later. If this keeps happening, message @FileForgeHelpDesk_bot for help.`);
         } catch (e) {}
         fs.unlinkSync(binPath);
         fs.unlinkSync(jsonPath);
