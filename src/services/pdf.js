@@ -14,15 +14,33 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-function isSofficeAvailable() {
+let cachedSofficePath = null;
+/**
+ * getSofficePath
+ * Locates the LibreOffice/soffice binary on the host system.
+ */
+function getSofficePath() {
+  if (cachedSofficePath) return cachedSofficePath;
   try {
-    const prog = process.platform === 'win32' ? 'soffice.exe' : 'soffice';
-    const res = spawnSync(prog, ['--version'], { timeout: 10000 });
-    if (res.error) return false;
-    return res.status === 0 || Boolean(res.stdout);
+    const candidates = process.platform === 'win32' 
+      ? ['soffice.exe'] 
+      : ['soffice', 'libreoffice', '/usr/bin/soffice', '/usr/bin/libreoffice'];
+    
+    for (const prog of candidates) {
+      const res = spawnSync(prog, ['--version'], { timeout: 5000 });
+      if (!res.error && (res.status === 0 || res.stdout)) {
+        cachedSofficePath = prog;
+        return prog;
+      }
+    }
   } catch (e) {
-    return false;
+    console.error('getSofficePath error:', e.message);
   }
+  return null;
+}
+
+function isSofficeAvailable() {
+  return !!getSofficePath();
 }
 
 // ─────────────────────────────────────────────
@@ -225,7 +243,7 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
 
     // Try several possible iLovePDF task types — APIs sometimes change names.
     // Prefer the most commonly available tasks first to avoid 404s.
-    const candidateTasks = ['pdfword', 'pdfworddoc'];
+    const candidateTasks = ['pdfword', 'pdf2word', 'office'];
     let lastErr = null;
     for (const taskType of candidateTasks) {
       try {
@@ -352,7 +370,9 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
 module.exports = {
   compressPdf,
   pdfToWord,
-  docxToPdf
+  docxToPdf,
+  getSofficePath,
+  isSofficeAvailable
 };
 
 /**
