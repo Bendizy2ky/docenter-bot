@@ -354,7 +354,7 @@ async function startBot() {
       const now = Date.now();
       files.forEach(file => {
         const filePath = path.join(tmpDir, file);
-        if (file.startsWith('fileforge-') || file.startsWith('pdf2word-')) {
+        if (file.startsWith('fileforge_') || file.startsWith('docenter_') || file.startsWith('pdf2word-')) {
           const stats = fs.statSync(filePath);
           if (now - stats.mtimeMs > 3600000) { // 1 hour old
             try { fs.rmSync(filePath, { recursive: true, force: true }); } catch(e) {}
@@ -536,7 +536,7 @@ async function startBot() {
   bot.command(['apply_background', 'applybackground'], (ctx) => {
     const userId = ctx.from.id.toString();
     userState.set(userId, { tool: 'apply_background' });
-    sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (Max 5MB)'), userId, true);
+    sendMarkdownSafe(ctx, menus.awaitingFile(menus.applyBackgroundAwaitingFile), userId, true);
   });
 
   bot.command(['convert_image', 'convertimage'], (ctx) => {
@@ -848,6 +848,29 @@ async function startBot() {
       );
     }
 
+    // Handle Quick-Chain actions (Persistence Persistence)
+    if (data.startsWith('chain:')) {
+      const targetTool = data.split(':')[1];
+      const tempPath = state?.tempFilePath;
+      
+      if (!tempPath || !fs.existsSync(tempPath)) {
+        return ctx.answerCbQuery('⚠️ Session file has expired. Please upload again.', { show_alert: true });
+      }
+
+      await ctx.answerCbQuery(`🚀 Chaining to ${targetTool.replace(/_/g, ' ')}...`);
+      
+      // Update state for the new tool
+      const newState = { ...state, tool: targetTool };
+      userState.set(userId, newState);
+      
+      // Retrieve cached data
+      const buffer = fs.readFileSync(tempPath);
+      const fileName = state.tempFileName || 'file';
+      const mimeType = state.tempMimeType || 'application/octet-stream';
+      
+      return await processBufferedFile(ctx, userId, buffer, fileName, mimeType);
+    }
+
     if (!state || state.tool !== 'export_suggest' || !state.aiText) {
       return ctx.answerCbQuery('⚠️ Your session has expired. Please process the document again to export.');
     }
@@ -975,6 +998,14 @@ async function startBot() {
             {
               text: "🛍️ Pay Securely Now",
               web_app: { url: checkoutUrl }
+              text: "🛍️ Pay Securely Now →",
+              url: checkoutUrl
+            }
+          ],
+          [
+            {
+              text: "✅ I Have Paid — Check My Balance",
+              callback_data: "check_balance"
             }
           ]
         ]
@@ -986,6 +1017,16 @@ async function startBot() {
   bot.command('buy_standard', (ctx) => handleBuyPack(ctx, 'standard'));
   bot.command('buy_pro',      (ctx) => handleBuyPack(ctx, 'pro'));
   bot.command('buy_power',    (ctx) => handleBuyPack(ctx, 'power'));
+  // New pack name commands
+  bot.command('buy_try',      (ctx) => handleBuyPack(ctx, 'try'));
+  bot.command('buy_regular',  (ctx) => handleBuyPack(ctx, 'regular'));
+  bot.command('buy_smart',    (ctx) => handleBuyPack(ctx, 'smart'));
+  bot.command('buy_boss',     (ctx) => handleBuyPack(ctx, 'boss'));
+  // Keep old commands working for backward compatibility
+  bot.command('buy_starter',  (ctx) => handleBuyPack(ctx, 'try'));
+  bot.command('buy_standard', (ctx) => handleBuyPack(ctx, 'regular'));
+  bot.command('buy_pro',      (ctx) => handleBuyPack(ctx, 'smart'));
+  bot.command('buy_power',    (ctx) => handleBuyPack(ctx, 'boss'));
 
   // ── Initialize Modular Handlers ──────────────
   const shared = {
@@ -1003,68 +1044,144 @@ async function startBot() {
     require('./workflowHandler')(bot, shared)
   ];
 
+  /**
+   * processBufferedFile
+   * The unified engine for processing files from new uploads or cached sessions.
+   */
+  async function processBufferedFile(ctx, userId, buffer, fileName, mimeType, existingMsgId = null) {
+    const state = userState.get(userId);
+    if (!state || !state.tool) return;
+
+    const cost = TOOL_COSTS[state.tool];
+    const balance = await getCredits(userId);
+
+    if (balance < cost) {
+      if (existingMsgId) await deleteProcessingMessage(ctx, existingMsgId);
+      return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance), userId, true);
+    }
+
+    let msgId = existingMsgId;
+    if (!msgId) {
+      const m = await sendMarkdownSafe(ctx, menus.processing(state.tool), userId);
+      msgId = m.message_id;
+      processingMessages.set(userId, msgId);
+    }
+
+    try {
+      // --- Magic Number Verification: Anti-Spoofing ---
+      if (!verifyFileSignature(buffer, state.tool)) {
+        throw new Error('The file content does not match its extension. Please send a valid, uncorrupted file.');
+      }
+      
+      let result = { sent: false };
+      const handlersShared = { ...shared, balance, cost, fileId: ctx.message?.document?.file_id };
+
+      for (const handler of handlers) {
+        if (handler.canHandle(state.tool)) {
+          result = await handler.process(ctx, state.tool, buffer, fileName, mimeType, state, handlersShared);
+          break;
+        }
+      }
+
+      await deleteProcessingMessage(ctx, msgId);
+
+      if (result.sent) {
+        const finalBalance = await deductCredits(userId, cost, state.tool);
+
+        // SESSION PERSISTENCE: Cache the file for potential chaining
+        // We cache the resulting buffer (if generated) or the input buffer
+        const cacheBuffer = (result.buffer && result.buffer.length > 0) ? result.buffer : buffer;
+        userState.setTempFile(userId, cacheBuffer, fileName, mimeType);
+
+        // Check Referral Completion
+        const refRes = await completeReferral(userId);
+        if (refRes.newUserBonus > 0) {
+          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* added!\n\nBalance: *${refRes.newBalance}* credits`);
+        }
+
+        if (!state.isWorkflow) {
+          // --- System-Wide Quick-Chain Button Mapping ---
+          const chainButtons = [];
+          const currentTool = state.tool;
+
+          if (currentTool === 'remove_background') {
+            chainButtons.push({ text: '📸 Make Passport', callback_data: 'chain:passport_photo' });
+            chainButtons.push({ text: '⚪ Studio White', callback_data: 'chain:apply_background' });
+            chainButtons.push({ text: '✨ Enhance', callback_data: 'chain:image_enhancer' });
+          } else if (currentTool === 'passport_photo') {
+            chainButtons.push({ text: '⚪ Apply White', callback_data: 'chain:apply_background' });
+          } else if (currentTool === 'image_enhancer') {
+            chainButtons.push({ text: '✂️ Remove BG', callback_data: 'chain:remove_background' });
+            chainButtons.push({ text: '📸 Passport', callback_data: 'chain:passport_photo' });
+          } else if (currentTool === 'compress_image') {
+            chainButtons.push({ text: '✂️ Remove BG', callback_data: 'chain:remove_background' });
+            chainButtons.push({ text: '✨ Enhance', callback_data: 'chain:image_enhancer' });
+          } else if (currentTool === 'pdf_to_word') {
+            chainButtons.push({ text: '📝 Summarize', callback_data: 'chain:ai_summarize' });
+            chainButtons.push({ text: '💎 Enhance CV', callback_data: 'chain:ai_cv_enhancer' });
+          } else if (currentTool === 'docx_to_pdf') {
+            chainButtons.push({ text: '📉 Compress PDF', callback_data: 'chain:compress_pdf' });
+          } else if (currentTool === 'compress_pdf') {
+            chainButtons.push({ text: '🔄 To Word', callback_data: 'chain:pdf_to_word' });
+            chainButtons.push({ text: '📝 Summarize', callback_data: 'chain:ai_summarize' });
+          } else if (currentTool === 'ai_summarize') {
+            chainButtons.push({ text: '💎 Enhance CV', callback_data: 'chain:ai_cv_enhancer' });
+          } else if (currentTool === 'transcribe_audio') {
+            chainButtons.push({ text: '📝 Summarize', callback_data: 'chain:ai_summarize' });
+          }
+
+          if (result.aiText) {
+            userState.set(userId, {
+              ...userState.get(userId),
+              tool: 'export_suggest',
+              aiText: result.aiText,
+              sourceTool: result.tool,
+              originalFileName: fileName
+            });
+
+            const exportRow = [{ text: '📄 Word (3 cr)', callback_data: 'exp_docx' }, { text: '📑 PDF (3 cr)', callback_data: 'exp_pdf' }];
+            const inline_keyboard = [exportRow];
+            
+            // Add chain buttons in a separate row
+            if (chainButtons.length > 0) {
+              inline_keyboard.push(chainButtons.slice(0, 2)); // Show up to 2 chain options
+              if (chainButtons.length > 2) inline_keyboard.push(chainButtons.slice(2));
+            }
+
+            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true, {
+              reply_markup: { inline_keyboard }
+            });
+          } else {
+            const inline_keyboard = [];
+            if (chainButtons.length > 0) {
+              inline_keyboard.push(chainButtons.slice(0, 2));
+              if (chainButtons.length > 2) inline_keyboard.push(chainButtons.slice(2));
+            }
+            const extra = inline_keyboard.length > 0 ? { reply_markup: { inline_keyboard } } : {};
+            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true, extra);
+          }
+        }
+
+        await handleWorkflowProgression(ctx, userId, state, result.buffer, finalBalance);
+      }
+    } catch (e) {
+      console.error('Core Process Error:', e);
+      await deleteProcessingMessage(ctx, msgId);
+      const toolFriendly = (state.tool || 'request').replace(/_/g, ' ');
+      await ctx.reply(`⚠️ Sorry, I encountered an error while processing your ${toolFriendly}. Please try again.`);
+      userState.delete(userId);
+    }
+  }
+
   bot.on(['document', 'photo', 'audio', 'voice'], async (ctx) => {
     const userId = ctx.from.id.toString();
     const state = userState.get(userId);
     if (!state) return sendMarkdownSafe(ctx, 'Please choose a tool first.\n\nType /pdf for PDF tools or /image for image tools.');
     
-    // --- Proactive File Sensitivity: Metadata Gatekeeping ---
-    const photoArr = ctx.message.photo;
-    const fileSize = ctx.message.document?.file_size ||
-                     ctx.message.audio?.file_size ||
-                     ctx.message.voice?.file_size ||
-                     (photoArr ? photoArr[photoArr.length - 1].file_size : 0) || 0;
-    
-    let toolLimitMB = 20; // Global fallback
-
-    if (['ai_summarize', 'ai_cv_enhancer'].includes(state.tool)) {
-      toolLimitMB = 5; 
-    } else if (['compress_image', 'remove_background', 'passport_photo', 'apply_background', 'convert_image', 'image_enhancer'].includes(state.tool)) {
-      toolLimitMB = 5; 
-    } else if (state.tool === 'transcribe_audio') {
-      toolLimitMB = 10;
-    } else if (state.tool.includes('pdf') || state.tool.includes('docx')) {
-      toolLimitMB = 10;
-    }
-
-    const MAX_SIZE = toolLimitMB * 1024 * 1024;
-
-    if (fileSize > MAX_SIZE) {
-      return sendMarkdownSafe(ctx, menus.fileTooLarge(toolLimitMB), userId, true);
-    }
-
-    const cost = TOOL_COSTS[state.tool];
-    const balance = await getCredits(userId);
-    if (balance < cost) return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance), userId, true);
-
-    // --- Strict Type Guard: Format Validation ---
     const mimeType = ctx.message.document?.mime_type || 
                      ctx.message.audio?.mime_type || 
                      ctx.message.voice?.mime_type || 
                      (ctx.message.photo ? 'image/jpeg' : null);
-
-    const allowed = ALLOWED_MIMES[state.tool];
-    if (allowed && mimeType) {
-      const isAllowed = allowed.some(type => mimeType.startsWith(type) || type === mimeType);
-      if (!isAllowed) {
-        const friendlyMap = {
-          'application/pdf': 'PDF',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word (.docx)',
-          'image/jpeg': 'JPG',
-          'image/png': 'PNG',
-          'image/webp': 'WebP',
-          'audio/mpeg': 'MP3',
-          'audio/ogg': 'Voice/Ogg'
-        };
-        const expectedNames = allowed.map(t => friendlyMap[t] || t.split('/')[1].toUpperCase()).join(', ');
-        return sendMarkdownSafe(ctx, menus.invalidFileType(expectedNames), userId, true);
-      }
-    } else if (allowed && !mimeType) {
-      return sendMarkdownSafe(ctx, '⚠️ I could not verify the type of this file. Please send it as a standard file or photo.', userId, true);
-    }
-
-    const msg = await sendMarkdownSafe(ctx, menus.processing(state.tool), userId);
-    processingMessages.set(userId, msg.message_id);
     
     try {
       const fileId = ctx.message.document?.file_id || 
@@ -1072,83 +1189,14 @@ async function startBot() {
                      ctx.message.voice?.file_id || 
                      ctx.message.photo?.pop().file_id;
       const buffer = await downloadTelegramFile(fileId, ctx);
-      let result = { sent: false };
-
-      // --- Magic Number Verification: Anti-Spoofing ---
-      if (!verifyFileSignature(buffer, state.tool)) {
-        throw new Error('The file content does not match its extension. Please send a valid, uncorrupted file.');
-      }
-      
       const fileName = ctx.message.document?.file_name || 
                        ctx.message.audio?.file_name || 
                        (ctx.message.voice ? 'voice_note.ogg' : ctx.message.photo ? 'photo.jpg' : 'file.pdf');
-
-      // Registry Loop: Delegate to the correct handler
-      for (const handler of handlers) {
-        if (handler.canHandle(state.tool)) {
-          result = await handler.process(ctx, state.tool, buffer, fileName, mimeType, state, { ...shared, balance, cost, fileId });
-          break;
-        }
-      }
-
-      await deleteProcessingMessage(ctx, msg.message_id);
-
-      if (result.sent) {
-        const finalBalance = await deductCredits(userId, cost, state.tool);
-
-        // Check Referral Completion
-        const refRes = await completeReferral(userId);
-        if (refRes.newUserBonus > 0) {
-          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* have been added!\n\nYour updated balance: *${refRes.newBalance}* credits\n\nEnjoy FileForge! 😊`);
-        }
-        if (refRes.referrerRewarded) {
-          await notifyReferrer(refRes.referrerId, {
-            totalEarned: refRes.referrerTotalEarned,
-            thisMonth: refRes.referrerThisMonth,
-            milestone: refRes.milestoneMsg
-          });
-        }
-
-        if (!state.isWorkflow) {
-          if (result.aiText) {
-            // Upgrade user state to suggest export
-            userState.set(userId, {
-              tool: 'export_suggest',
-              aiText: result.aiText,
-              sourceTool: result.tool,
-              originalFileName: fileName
-            });
-
-            const extra = {
-              reply_markup: {
-                inline_keyboard: [[
-                  { text: '📄 Word (3 cr)', callback_data: 'exp_docx' },
-                  { text: '📑 PDF (3 cr)', callback_data: 'exp_pdf' }
-                ]]
-              }
-            };
-            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true, extra);
-          } else {
-            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true);
-          }
-        }
-
-        await handleWorkflowProgression(ctx, userId, state, result.buffer, finalBalance);
-      } else {
-        await ctx.reply('⚠️ Processing failed or file could not be delivered. No credits were deducted.');
-      }
       
-      // --- Memory Management: Clear buffer explicitly ---
-      result.buffer = null;
+      return await processBufferedFile(ctx, userId, buffer, fileName, mimeType);
     } catch (e) {
-      console.error('Document handling error:', e);
-      await deleteProcessingMessage(ctx, msg.message_id);
-
-      // Friendly user feedback
-      const toolFriendly = (state.tool || 'request').replace(/_/g, ' ');
-      await ctx.reply(`⚠️ Sorry, I encountered an error while processing your ${toolFriendly}. This can happen with complex or password-protected files. Please try again or contact support.`);
-
-      userState.delete(userId);
+      console.error('Download error:', e);
+      await ctx.reply('⚠️ Failed to receive your file. Please try again.');
     }
   });
 
@@ -1166,12 +1214,12 @@ async function startBot() {
       );
     } else if (state.isWorkflow) {
       await sendMarkdownSafe(ctx, menus.workflowComplete(state.workflow, finalBalance), userId, true);
-      userState.delete(userId);
+      userState.set(userId, { ...userState.get(userId), isWorkflow: false, tool: null });
     } else {
       // Don't delete if we are waiting for an export selection
       const currentState = userState.get(userId);
       if (!currentState || currentState.tool !== 'export_suggest') {
-        userState.delete(userId);
+        userState.set(userId, { ...userState.get(userId), tool: null });
       }
     }
   }
@@ -1236,7 +1284,7 @@ async function startBot() {
       }
       if (cmd === 'apply_background' || cmd === 'applybackground') {
         userState.set(userId, { tool: 'apply_background' });
-        return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *image* you want to change the background for. (Max 5MB)'), userId, true);
+        return sendMarkdownSafe(ctx, menus.awaitingFile(menus.applyBackgroundAwaitingFile), userId, true);
       }
       if (cmd === 'convert_image' || cmd === 'convertimage') {
         return sendMarkdownSafe(ctx,

@@ -36,15 +36,8 @@ module.exports = {
     saveState(state);
   },
   delete: (userId) => {
-    // Cleanup temp files on state deletion
-    try {
-      const state = loadState();
-      const session = state[String(userId)];
-      if (session && session.tempFilePath && fs.existsSync(session.tempFilePath)) {
-        fs.unlinkSync(session.tempFilePath);
-      }
-    } catch (e) {}
-
+    // We rely on the global scavenger in bot.js to cleanup files
+    // This allows files to persist briefly after a state "deletion"
     const state = loadState();
     delete state[String(userId)];
     saveState(state);

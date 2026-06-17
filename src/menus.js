@@ -107,7 +107,7 @@ Choose a tool:
 
 1️⃣ /compress_image — Shrink image file size (1 credit)
 2️⃣ /remove_background — Remove image background (2 credits)
-3️⃣ /apply_background — Replace with white/red/blue background (3 credits)
+3️⃣ /apply_background — Studio White Background (3 credits)
 4️⃣ /passport_photo — Make a passport photo (3 credits)
 5️⃣ /convert_image — Convert image formats (jpg ↔ png, webp) (1 credit)
 6️⃣ /image_enhancer — AI Photo Enhancement (Premium) (3 credits)
@@ -237,6 +237,12 @@ Please try again. If the problem continues, message @Anene1 for help.
 
   // Sent when we are waiting for the user to upload a file
   awaitingFile: (instruction) => `📎 ${instruction}`,
+
+  applyBackgroundAwaitingFile: `Please send the *image* you want to change the background for. (Max 5MB)
+
+I will apply a professional **White** background by default.
+
+✨ *Friendly Tip:* This tool is highly suitable for creating studio-quality backgrounds for products sold online and ensuring passport photos meet official standards!`,
 
   passportGuide: `📸 For best results:
 • Position your face in the CENTER of the photo
