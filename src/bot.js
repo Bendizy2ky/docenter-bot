@@ -280,7 +280,7 @@ async function safelySendFile(ctx, buffer, filename, caption) {
 async function notifyReferrer(referrerId, data) {
   try {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    let text = `🎉 *Referral Success!*\n\nSomeone just used DocCenter for the first time through your referral link!\n\n*+3 credits* added to your account.\nTotal from referrals: *${data.totalEarned}* credits\nThis month: *${data.thisMonth}/30* credits\n\nKeep sharing: /refer`;
+    let text = `🎉 *Referral Success!*\n\nSomeone just used FileForge for the first time through your referral link!\n\n*+3 credits* added to your account.\nTotal from referrals: *${data.totalEarned}* credits\nThis month: *${data.thisMonth}/30* credits\n\nKeep sharing: /refer`;
 
     if (data.milestone) {
       text += `\n\n🏆 *Amazing! You reached ${data.milestone.threshold} referrals!*\n\n+${data.milestone.bonus} bonus credits added.\nThat is a free ${data.milestone.packName} worth of credits!\n\nYour balance: *${data.milestone.newBalance}* credits`;
@@ -831,6 +831,23 @@ async function startBot() {
     const data = ctx.callbackQuery.data;
     const state = userState.get(userId);
 
+    // Handle balance check after payment
+    if (data === 'check_balance') {
+      await ctx.answerCbQuery('Checking your balance...');
+      const balance = await getCredits(userId);
+      return sendMarkdownSafe(
+        ctx,
+        `💳 *Your Current Balance*\n\n` +
+        `Credits: *${balance}*\n\n` +
+        `If your payment was successful your ` +
+        `credits have been added automatically.\n\n` +
+        `If credits have not appeared yet please ` +
+        `wait 30 seconds and check again with /balance`,
+        userId,
+        false
+      );
+    }
+
     if (!state || state.tool !== 'export_suggest' || !state.aiText) {
       return ctx.answerCbQuery('⚠️ Your session has expired. Please process the document again to export.');
     }
@@ -919,20 +936,31 @@ async function startBot() {
 
     const result = await generatePaymentLink(userId, packKey);
 
-    // Senior Fix: Deep-check Paystack's nested response structure
-    // Paystack native: result.data.authorization_url
-    // Some wrappers: result.authorization_url
     let checkoutUrl = null;
-    if (result) {
-      const rawUrl = result.url || result.authorization_url || (result.data && (result.data.authorization_url || result.data.url));
+    if (result && result.success) {
+      // Check all possible property names
+      // payments.js returns it as result.paymentUrl
+      const rawUrl = result.paymentUrl 
+        || result.url 
+        || result.authorization_url 
+        || (result.data && (result.data.authorization_url || result.data.url));
       if (typeof rawUrl === 'string' && rawUrl.startsWith('http')) {
         checkoutUrl = rawUrl;
       }
     }
 
+    // Also add better error logging to help debug
     if (!checkoutUrl) {
-      console.error(`[Payment Error] Failed to extract valid URL for ${userId}. Result:`, JSON.stringify(result));
-      return ctx.reply('⚠️ Could not generate a secure payment link. Please try again or contact support.');
+      console.error(
+        '[Payment Error] Could not extract URL. ' +
+        'result.success:', result?.success,
+        'result keys:', result ? Object.keys(result) : 'null',
+        'result.paymentUrl:', result?.paymentUrl
+      );
+      return ctx.reply(
+        '⚠️ Could not generate a secure payment link.\n' +
+        'Please try again or contact support.'
+      );
     }
 
     const messageText = `💳 <b>${pack.name} Pack — ₦${pack.price.toLocaleString()}</b>\n` +

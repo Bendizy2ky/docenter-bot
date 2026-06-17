@@ -11,10 +11,17 @@ const crypto = require('crypto');
 // Credit pack definitions
 // Each pack has a name, price in Naira, and credits given
 const CREDIT_PACKS = {
-  starter:  { name: 'Starter',  price: 500,   credits: 10  },
-  standard: { name: 'Standard', price: 1000,  credits: 25  },
-  pro:      { name: 'Pro',      price: 2000,  credits: 60  },
-  power:    { name: 'Power',    price: 5000,  credits: 180 },
+  // New pack names
+  try:     { name: 'Try Pack',     price: 500,   credits: 10  },
+  regular: { name: 'Regular Pack', price: 1000,  credits: 25  },
+  smart:   { name: 'Smart Pack',   price: 2000,  credits: 60  },
+  boss:    { name: 'Boss Pack',    price: 5000,  credits: 180 },
+  // Backward compatibility aliases
+  // Keep old keys working so existing webhook references do not break
+  starter:  { name: 'Try Pack',     price: 500,   credits: 10  },
+  standard: { name: 'Regular Pack', price: 1000,  credits: 25  },
+  pro:      { name: 'Smart Pack',   price: 2000,  credits: 60  },
+  power:    { name: 'Boss Pack',    price: 5000,  credits: 180 },
 };
 
 /**
