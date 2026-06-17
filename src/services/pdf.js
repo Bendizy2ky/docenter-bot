@@ -243,7 +243,7 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
 
     // Try several possible iLovePDF task types — APIs sometimes change names.
     // Prefer the most commonly available tasks first to avoid 404s.
-    const candidateTasks = ['pdfword', 'pdf2word', 'office'];
+    const candidateTasks = ['pdfword', 'pdf2word'];
     let lastErr = null;
     for (const taskType of candidateTasks) {
       try {
@@ -307,13 +307,27 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
 
 /**
  * docxToPdf
- * Converts a .docx Word buffer to a PDF buffer using local LibreOffice.
+ * Converts a .docx Word buffer to a PDF buffer.
+ * Tries iLovePDF Cloud API first, then falls back to local LibreOffice.
  */
 async function docxToPdf(fileBuffer, fileName = 'document.docx') {
   try {
+    // 1. Try iLovePDF Cloud API first (Standard for Railway/Serverless)
+    try {
+      const token = await getAuthToken();
+      const { server, taskId } = await startTask(token, 'officepdf');
+      const serverFilename = await uploadFile(token, server, taskId, fileBuffer, fileName);
+      const pdfBuffer = await processAndDownload(token, server, taskId, serverFilename, 'officepdf');
+      
+      if (pdfBuffer && pdfBuffer.length > 0) return { success: true, buffer: pdfBuffer };
+    } catch (apiErr) {
+      console.warn('docxToPdf: Cloud conversion failed, trying local fallback...', apiErr.message);
+    }
+
+    // 2. Fallback to local LibreOffice (if installed)
     const soffice = getSofficePath();
     if (!soffice) {
-      return { success: false, error: 'LibreOffice is not installed on the server to handle Word conversions.' };
+      return { success: false, error: 'Cloud conversion failed and LibreOffice is not installed on this server.' };
     }
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'word2pdf-'));
