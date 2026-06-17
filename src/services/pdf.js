@@ -168,7 +168,7 @@ async function processAndDownload(token, server, taskId, serverFilename, taskTyp
   // iLovePDF returns different binary types depending on the task (PDF for compress,
   // DOCX for office conversions). Only enforce ZIP/DOCX check when we expect a DOCX.
   const expectsDocx = (extraParams && String(extraParams.output_format || '').toLowerCase() === 'docx')
-    || (typeof taskType === 'string' && /pdfword|pdf2word|office|pdfoffice/i.test(taskType));
+    || (typeof taskType === 'string' && /^(pdfword|pdf2word|office|pdfoffice)$/i.test(taskType));
   if (expectsDocx) {
     if (!isZipBuffer(buf)) {
       console.error('processAndDownload: downloaded result does not appear to be a ZIP/DOCX file. First bytes:', buf.slice(0,8));
@@ -251,7 +251,7 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
 
     // Try several possible iLovePDF task types — APIs sometimes change names.
     // Prefer the most commonly available tasks first to avoid 404s.
-    const candidateTasks = ['pdfword', 'pdfoffice', 'pdf2word'];
+    const candidateTasks = ['pdfword', 'office', 'pdf2word', 'pdfoffice'];
     let lastErr = null;
     for (const taskType of candidateTasks) {
       try {
