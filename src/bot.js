@@ -1143,6 +1143,11 @@ async function startBot() {
     } catch (e) {
       console.error('Document handling error:', e);
       await deleteProcessingMessage(ctx, msg.message_id);
+
+      // Friendly user feedback
+      const toolFriendly = (state.tool || 'request').replace(/_/g, ' ');
+      await ctx.reply(`⚠️ Sorry, I encountered an error while processing your ${toolFriendly}. This can happen with complex or password-protected files. Please try again or contact support.`);
+
       userState.delete(userId);
     }
   });

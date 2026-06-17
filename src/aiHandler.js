@@ -12,7 +12,7 @@ module.exports = (bot, shared) => {
 
   bot.command(['ai_cv_enhancer'], (ctx) => {
     userState.set(ctx.from.id.toString(), { tool: 'ai_cv_enhancer' });
-    sendMarkdownSafe(ctx, menus.awaitingFile(`Send your *CV (PDF or Word)* for professional enhancement. (Max 5 pages recommended, Max 5MB)\n\nCost: ${TOOL_COSTS.cv_enhance} credits`));
+    sendMarkdownSafe(ctx, menus.awaitingFile(`Send your *CV (PDF or Word)* for professional enhancement. (Max 5 pages recommended, Max 5MB)\n\nCost: ${TOOL_COSTS.ai_cv_enhancer} credits`));
   });
 
   bot.command('generate_image', async (ctx) => {
