@@ -996,8 +996,6 @@ async function startBot() {
         inline_keyboard: [
           [
             {
-              text: "🛍️ Pay Securely Now",
-              web_app: { url: checkoutUrl }
               text: "🛍️ Pay Securely Now →",
               url: checkoutUrl
             }
@@ -1013,10 +1011,6 @@ async function startBot() {
     });
   }
 
-  bot.command('buy_starter',  (ctx) => handleBuyPack(ctx, 'starter'));
-  bot.command('buy_standard', (ctx) => handleBuyPack(ctx, 'standard'));
-  bot.command('buy_pro',      (ctx) => handleBuyPack(ctx, 'pro'));
-  bot.command('buy_power',    (ctx) => handleBuyPack(ctx, 'power'));
   // New pack name commands
   bot.command('buy_try',      (ctx) => handleBuyPack(ctx, 'try'));
   bot.command('buy_regular',  (ctx) => handleBuyPack(ctx, 'regular'));
@@ -1043,135 +1037,6 @@ async function startBot() {
     require('./referralHandler')(bot, shared),
     require('./workflowHandler')(bot, shared)
   ];
-
-  /**
-   * processBufferedFile
-   * The unified engine for processing files from new uploads or cached sessions.
-   */
-  async function processBufferedFile(ctx, userId, buffer, fileName, mimeType, existingMsgId = null) {
-    const state = userState.get(userId);
-    if (!state || !state.tool) return;
-
-    const cost = TOOL_COSTS[state.tool];
-    const balance = await getCredits(userId);
-
-    if (balance < cost) {
-      if (existingMsgId) await deleteProcessingMessage(ctx, existingMsgId);
-      return sendMarkdownSafe(ctx, menus.notEnoughCredits(state.tool, cost, balance), userId, true);
-    }
-
-    let msgId = existingMsgId;
-    if (!msgId) {
-      const m = await sendMarkdownSafe(ctx, menus.processing(state.tool), userId);
-      msgId = m.message_id;
-      processingMessages.set(userId, msgId);
-    }
-
-    try {
-      // --- Magic Number Verification: Anti-Spoofing ---
-      if (!verifyFileSignature(buffer, state.tool)) {
-        throw new Error('The file content does not match its extension. Please send a valid, uncorrupted file.');
-      }
-      
-      let result = { sent: false };
-      const handlersShared = { ...shared, balance, cost, fileId: ctx.message?.document?.file_id };
-
-      for (const handler of handlers) {
-        if (handler.canHandle(state.tool)) {
-          result = await handler.process(ctx, state.tool, buffer, fileName, mimeType, state, handlersShared);
-          break;
-        }
-      }
-
-      await deleteProcessingMessage(ctx, msgId);
-
-      if (result.sent) {
-        const finalBalance = await deductCredits(userId, cost, state.tool);
-
-        // SESSION PERSISTENCE: Cache the file for potential chaining
-        // We cache the resulting buffer (if generated) or the input buffer
-        const cacheBuffer = (result.buffer && result.buffer.length > 0) ? result.buffer : buffer;
-        userState.setTempFile(userId, cacheBuffer, fileName, mimeType);
-
-        // Check Referral Completion
-        const refRes = await completeReferral(userId);
-        if (refRes.newUserBonus > 0) {
-          await sendMarkdownSafe(ctx, `🎁 *Referral Bonus Unlocked!*\n\nYou joined through a friend's link.\n*+5 bonus credits* added!\n\nBalance: *${refRes.newBalance}* credits`);
-        }
-
-        if (!state.isWorkflow) {
-          // --- System-Wide Quick-Chain Button Mapping ---
-          const chainButtons = [];
-          const currentTool = state.tool;
-
-          if (currentTool === 'remove_background') {
-            chainButtons.push({ text: '📸 Make Passport', callback_data: 'chain:passport_photo' });
-            chainButtons.push({ text: '⚪ Studio White', callback_data: 'chain:apply_background' });
-            chainButtons.push({ text: '✨ Enhance', callback_data: 'chain:image_enhancer' });
-          } else if (currentTool === 'passport_photo') {
-            chainButtons.push({ text: '⚪ Apply White', callback_data: 'chain:apply_background' });
-          } else if (currentTool === 'image_enhancer') {
-            chainButtons.push({ text: '✂️ Remove BG', callback_data: 'chain:remove_background' });
-            chainButtons.push({ text: '📸 Passport', callback_data: 'chain:passport_photo' });
-          } else if (currentTool === 'compress_image') {
-            chainButtons.push({ text: '✂️ Remove BG', callback_data: 'chain:remove_background' });
-            chainButtons.push({ text: '✨ Enhance', callback_data: 'chain:image_enhancer' });
-          } else if (currentTool === 'pdf_to_word') {
-            chainButtons.push({ text: '📝 Summarize', callback_data: 'chain:ai_summarize' });
-            chainButtons.push({ text: '💎 Enhance CV', callback_data: 'chain:ai_cv_enhancer' });
-          } else if (currentTool === 'docx_to_pdf') {
-            chainButtons.push({ text: '📉 Compress PDF', callback_data: 'chain:compress_pdf' });
-          } else if (currentTool === 'compress_pdf') {
-            chainButtons.push({ text: '🔄 To Word', callback_data: 'chain:pdf_to_word' });
-            chainButtons.push({ text: '📝 Summarize', callback_data: 'chain:ai_summarize' });
-          } else if (currentTool === 'ai_summarize') {
-            chainButtons.push({ text: '💎 Enhance CV', callback_data: 'chain:ai_cv_enhancer' });
-          } else if (currentTool === 'transcribe_audio') {
-            chainButtons.push({ text: '📝 Summarize', callback_data: 'chain:ai_summarize' });
-          }
-
-          if (result.aiText) {
-            userState.set(userId, {
-              ...userState.get(userId),
-              tool: 'export_suggest',
-              aiText: result.aiText,
-              sourceTool: result.tool,
-              originalFileName: fileName
-            });
-
-            const exportRow = [{ text: '📄 Word (3 cr)', callback_data: 'exp_docx' }, { text: '📑 PDF (3 cr)', callback_data: 'exp_pdf' }];
-            const inline_keyboard = [exportRow];
-            
-            // Add chain buttons in a separate row
-            if (chainButtons.length > 0) {
-              inline_keyboard.push(chainButtons.slice(0, 2)); // Show up to 2 chain options
-              if (chainButtons.length > 2) inline_keyboard.push(chainButtons.slice(2));
-            }
-
-            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true, {
-              reply_markup: { inline_keyboard }
-            });
-          } else {
-            const inline_keyboard = [];
-            if (chainButtons.length > 0) {
-              inline_keyboard.push(chainButtons.slice(0, 2));
-              if (chainButtons.length > 2) inline_keyboard.push(chainButtons.slice(2));
-            }
-            const extra = inline_keyboard.length > 0 ? { reply_markup: { inline_keyboard } } : {};
-            await sendMarkdownSafe(ctx, menus.success(state.tool, finalBalance), userId, true, extra);
-          }
-        }
-
-        await handleWorkflowProgression(ctx, userId, state, result.buffer, finalBalance);
-      }
-    } catch (e) {
-      console.error('Core Process Error:', e);
-      await deleteProcessingMessage(ctx, msgId);
-      const toolFriendly = (state.tool || 'request').replace(/_/g, ' ');
-      await ctx.reply(`⚠️ Sorry, I encountered an error while processing your ${toolFriendly}. Please try again.`);
-      userState.delete(userId);
-    }
-  }
 
   bot.on(['document', 'photo', 'audio', 'voice'], async (ctx) => {
     const userId = ctx.from.id.toString();
