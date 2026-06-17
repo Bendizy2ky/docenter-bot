@@ -203,13 +203,13 @@ Please send a file in one of these formats: *${expected}*
   premiumMarketer: {
     getSuggestion: (tool) => {
       const suggestions = {
-        ai_summarize: "Your insights are ready. Would you like me to generate a professionally formatted document of this summary? (3 credits)\n\nClick the <b>Word</b> or <b>PDF</b> buttons below to export.\n\nAlternatively, ensure your own professional profile is as sharp as this summary—our /ai_cv_enhancer is the perfect next step.",
-        ai_cv_enhancer: "That's a world-class resume! To complete your elite presentation, I can generate a move-ready Word or PDF version for you. (3 credits)\n\nClick the <b>Word</b> or <b>PDF</b> buttons below to export.\n\nAlso, our /passport_photo tool ensures your application image is just as high-impact.",
+        ai_summarize: "Your insights are ready. Would you like me to generate a professionally formatted document of this summary? (3 credits)\n\nClick the *Word* or *PDF* buttons below to export.\n\nAlternatively, ensure your own professional profile is as sharp as this summary—our /ai_cv_enhancer is the perfect next step.",
+        ai_cv_enhancer: "That's a world-class resume! To complete your elite presentation, I can generate a move-ready Word or PDF version for you. (3 credits)\n\nClick the *Word* or *PDF* buttons below to export.\n\nAlso, our /passport_photo tool ensures your application image is just as high-impact.",
         compress_pdf: "Optimization complete. If you need to dive deeper into this document, our /summarize tool can provide an executive overview in seconds.",
         pdf_to_word: "Seamlessly converted. If this document is part of a career move, our /ai_cv_enhancer is ready to help you land that interview.",
         remove_background: "Visuals refined. For a truly professional finish, use our /passport_photo tool to prepare this image for any corporate or official use.",
         passport_photo: "Excellence delivered! Your passport photo looks great. To make it absolutely perfect for official embassy or corporate use, would you like to add a professional *White, Blue, or Red* background? For just *3 credits*, we'll ensure it meets every requirement with a studio finish. Give it a try: /apply_background",
-        transcribe_audio: "Transcription finalized. Click the <b>Word</b> or <b>PDF</b> buttons below to export.\n\nFor a high-level briefing on these notes, our /summarize tool is just one click away.",
+        transcribe_audio: "Transcription finalized. Click the *Word* or *PDF* buttons below to export.\n\nFor a high-level briefing on these notes, our /summarize tool is just one click away.",
         "PassportPhoto Pack": "Your elite passport is ready. If you're preparing for an application, ensure your CV is equally impressive with our /ai_cv_enhancer.",
         image_enhancer: "Visuals reconstructed and refined with Generative Pro AI. Your photo now meets elite studio standards.",
         doc_export: "Your document has been professionally formatted and delivered. To ensure your entire career profile is just as polished, try our /ai_cv_enhancer.",

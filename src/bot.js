@@ -143,7 +143,9 @@ async function sendMarkdownSafe(ctx, text, userId = null, checkLowCredits = fals
       // Convert Markdown italics (_) to HTML <i>, but only if not part of a word/command
       .replace(/(^|\s)_(.*?)_(\s|$|[.,!?;:])/g, '$1<i>$2</i>$3')
       // Convert Markdown code (`) to HTML <code>
-      .replace(/`(.*?)`/g, '<code>$1</code>');
+      .replace(/`(.*?)`/g, '<code>$1</code>')
+      // Un-escape valid formatting tags so they render correctly
+      .replace(/&lt;(\/)?(b|i|code|s|u)&gt;/g, '<$1$2>');
 
     // Append referral prompt if credits are low
     if (checkLowCredits && userId) {
@@ -241,7 +243,9 @@ async function safelySendFile(ctx, buffer, filename, caption) {
       .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
       .replace(/\*(.*?)\*/g, '<b>$1</b>')
       .replace(/(^|\s)_(.*?)_(\s|$|[.,!?;:])/g, '$1<i>$2</i>$3')
-      .replace(/`(.*?)`/g, '<code>$1</code>') : '';
+      .replace(/`(.*?)`/g, '<code>$1</code>')
+      // Un-escape valid formatting tags so they render correctly
+      .replace(/&lt;(\/)?(b|i|code|s|u)&gt;/g, '<$1$2>') : '';
 
     const FormData = require('form-data');
     const form = new FormData();
