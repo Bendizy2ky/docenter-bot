@@ -46,7 +46,7 @@ const TOOL_COSTS = {
   transcribe_audio:   5,
   apply_background:   3,
   ai_summarize:       5,
-  cv_enhance:         10,
+  ai_cv_enhancer:     10,
   ai_image_generator: 2,
   image_enhancer:     3,
   passportphoto_pack: 6,
@@ -60,7 +60,7 @@ const TOOL_COSTS = {
 // ─────────────────────────────────────────────
 const ALLOWED_MIMES = {
   ai_summarize:       ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-  cv_enhance:         ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ai_cv_enhancer:     ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
   compress_pdf:       ['application/pdf'],
   pdf_to_word:        ['application/pdf'],
   docx_to_pdf:        ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -91,7 +91,7 @@ function verifyFileSignature(buffer, tool) {
 
   if (['compress_pdf', 'pdf_to_word'].includes(tool)) return isPdf;
   if (tool === 'docx_to_pdf') return isZip;
-  if (['ai_summarize', 'cv_enhance'].includes(tool)) return isPdf || isZip;
+  if (['ai_summarize', 'ai_cv_enhancer'].includes(tool)) return isPdf || isZip;
   
   if (['compress_image', 'remove_background', 'passport_photo', 'convert_image', 'image_enhancer', 'apply_background', 'passportphoto_pack', 'business_photo_pack'].includes(tool)) {
     return isJpeg || isPng || isWebp;
@@ -867,7 +867,7 @@ async function startBot() {
       const { generateDocx } = require('./services/docGen');
       const { docxToPdf } = require('./services/pdf');
       
-      const title = state.sourceTool === 'cv_enhance' ? 'Elite Enhanced CV' : 'Executive Document Summary';
+      const title = state.sourceTool === 'ai_cv_enhancer' ? 'Elite Enhanced CV' : 'Executive Document Summary';
       let buffer = await generateDocx(state.aiText, title);
       let ext = '.docx';
 
@@ -1017,7 +1017,7 @@ async function startBot() {
     
     let toolLimitMB = 20; // Global fallback
 
-    if (['ai_summarize', 'cv_enhance'].includes(state.tool)) {
+    if (['ai_summarize', 'ai_cv_enhancer'].includes(state.tool)) {
       toolLimitMB = 5; 
     } else if (['compress_image', 'remove_background', 'passport_photo', 'apply_background', 'convert_image', 'image_enhancer'].includes(state.tool)) {
       toolLimitMB = 5; 
@@ -1285,8 +1285,8 @@ async function startBot() {
         userState.set(userId, { tool: 'ai_summarize' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Please send the *document* you want me to summarize. (Best for documents up to 15 pages)'), userId, true);
       }
-      if (cmd === 'cv_enhance' || cmd === 'cvenhance' || cmd === 'ai_cv_enhancer') {
-        userState.set(userId, { tool: 'cv_enhance' });
+      if (cmd === 'ai_cv_enhancer') {
+        userState.set(userId, { tool: 'ai_cv_enhancer' });
         return sendMarkdownSafe(ctx, menus.awaitingFile('Send your *CV (PDF or Word)* for enhancement. (Max 5 pages recommended)'), userId, true);
       }
       if (cmd === 'compress_pdf' || cmd === 'compresspdf') {

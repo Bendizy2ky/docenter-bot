@@ -293,7 +293,8 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
  */
 async function docxToPdf(fileBuffer, fileName = 'document.docx') {
   try {
-    if (!isSofficeAvailable()) {
+    const soffice = getSofficePath();
+    if (!soffice) {
       return { success: false, error: 'LibreOffice is not installed on the server to handle Word conversions.' };
     }
 
@@ -306,9 +307,8 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
     if (finalInputPath !== inputPath) fs.renameSync(inputPath, finalInputPath);
 
     const userProfile = `file://${tmpDir}/profile`;
-    const prog = process.platform === 'win32' ? 'soffice.exe' : 'soffice';
     
-    const res = spawnSync(prog, [
+    const res = spawnSync(soffice, [
       `-env:UserInstallation=${userProfile}`,
       '--headless',
       '--convert-to',
@@ -328,17 +328,16 @@ async function docxToPdf(fileBuffer, fileName = 'document.docx') {
     }
 
     const baseName = path.basename(finalInputPath).replace(/\.docx$/i, '');
-    const outPath = path.join(tmpDir, `${baseName}.pdf`);
+    let outPath = path.join(tmpDir, `${baseName}.pdf`);
     
     if (!fs.existsSync(outPath)) {
+      // More robust check: find any PDF if exact match fails
       const files = fs.readdirSync(tmpDir).filter(f => f.toLowerCase().endsWith('.pdf'));
       if (files.length === 0) {
         cleanupTmp(tmpDir);
         return { success: false, error: 'Resulting PDF not found.' };
       }
-      const buf = fs.readFileSync(path.join(tmpDir, files.find(f => f.includes(baseName)) || files[0]));
-      cleanupTmp(tmpDir);
-      return { success: true, buffer: buf };
+      outPath = path.join(tmpDir, files.find(f => f.includes(baseName)) || files[0]);
     }
 
     const buf = fs.readFileSync(outPath);
@@ -362,6 +361,11 @@ module.exports = {
  * Returns { success: true, buffer } on success, otherwise { success: false }.
  */
 async function tryLocalLibreOfficeConversion(fileBuffer, fileName) {
+  const soffice = getSofficePath();
+  if (!soffice) {
+    return { success: false };
+  }
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf2word-'));
   const inputPath = path.join(tmpDir, fileName.replace(/[^a-z0-9\.\-_]/gi, '_'));
   fs.writeFileSync(inputPath, fileBuffer);
@@ -369,9 +373,8 @@ async function tryLocalLibreOfficeConversion(fileBuffer, fileName) {
   // Spawn soffice to convert to docx in the same tmp dir
   // Example: soffice --headless --convert-to docx --outdir <tmpDir> <inputPath>
   try {
-    const prog = process.platform === 'win32' ? 'soffice.exe' : 'soffice';
     const userProfile = `file://${tmpDir}/profile`;
-    const res = spawnSync(prog, [
+    const res = spawnSync(soffice, [
       `-env:UserInstallation=${userProfile}`,
       '--headless',
       '--convert-to',
