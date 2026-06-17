@@ -19,6 +19,8 @@ let writeQueue = Promise.resolve();
 // In-memory cache to prevent reading stale data from disk
 let creditsCache = null;
 
+const ADMIN_ID = process.env.ADMIN_TELEGRAM_ID || '772990882';
+
 /**
  * Internal helper to queue file writes
  */
@@ -76,7 +78,10 @@ async function _ensureUserObject(all, id) {
       referralMonthKey: currentMonth,
       milestonesEarned: [],
       firstToolUsed: false,
-      joinedAt: new Date().toISOString()
+      joinedAt: new Date().toISOString(),
+      totalPurchased: 0,
+      totalSpent: 0,
+      spendingHistory: [] // [{amount, tool, timestamp}]
     };
     await saveCredits(all);
     return;
@@ -94,7 +99,10 @@ async function _ensureUserObject(all, id) {
       referralMonthKey: currentMonth,
       milestonesEarned: [],
       firstToolUsed: false,
-      joinedAt: new Date().toISOString()
+      joinedAt: new Date().toISOString(),
+      totalPurchased: 0,
+      totalSpent: 0,
+      spendingHistory: []
     };
     await saveCredits(all);
   }
@@ -130,9 +138,11 @@ async function atomicUpdate(userId, updateFn) {
     });
 }
 
-async function addCredits(userId, amount) {
+async function addCredits(userId, amount, isPurchase = false) {
     return atomicUpdate(userId, (user) => {
-        user.credits += Number(amount);
+        const val = Number(amount);
+        user.credits += val;
+        if (isPurchase) user.totalPurchased = (user.totalPurchased || 0) + val;
         return user.credits;
     });
 }
@@ -146,6 +156,14 @@ async function deductCredits(userId, amount, toolName = null) {
           if (!user.toolUsage) user.toolUsage = {};
           user.toolUsage[toolName] = (user.toolUsage[toolName] || 0) + 1;
         }
+        
+        user.totalSpent = (user.totalSpent || 0) + cost;
+        if (!user.spendingHistory) user.spendingHistory = [];
+        user.spendingHistory.push({ amount: cost, tool: toolName, ts: Date.now() });
+        
+        // Keep only last 100 entries to prevent JSON bloat
+        if (user.spendingHistory.length > 100) user.spendingHistory.shift();
+        
         return user.credits;
     });
 }
@@ -334,7 +352,6 @@ async function getReferralStats(userId) {
  */
 async function getGlobalStats() {
   const all = loadCredits();
-  const ADMIN_ID = '772990882';
   const now = new Date();
   const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
   const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
@@ -347,6 +364,11 @@ async function getGlobalStats() {
   let totalReferrals = 0;
   let referrersList = [];
   let toolUsageAggregated = {};
+  
+  let totalPurchased = 0;
+  let totalLiability = 0;
+  let creditsSpent24h = 0;
+  let dropOffCount = 0;
 
   userIds.forEach(id => {
     const u = all[id];
@@ -358,10 +380,21 @@ async function getGlobalStats() {
       }
       
       if (u.firstToolUsed) active++;
+      else dropOffCount++;
+
+      totalPurchased += (u.totalPurchased || 0);
+      totalLiability += (u.credits || 0);
       
       if (u.referralCount > 0) {
         totalReferrals += u.referralCount;
         referrersList.push({ id, count: u.referralCount });
+      }
+
+      if (u.spendingHistory) {
+        const dayAgoMs = Date.now() - (24 * 60 * 60 * 1000);
+        u.spendingHistory.forEach(entry => {
+          if (entry.ts > dayAgoMs) creditsSpent24h += entry.amount;
+        });
       }
 
       if (u.toolUsage) {
@@ -379,7 +412,19 @@ async function getGlobalStats() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  return { total, daily, weekly, active, rankedTools, totalReferrals, topReferrers };
+  return { 
+    total, 
+    daily, 
+    weekly, 
+    active, 
+    rankedTools, 
+    totalReferrals, 
+    topReferrers,
+    totalPurchased,
+    totalLiability,
+    creditsSpent24h,
+    dropOffCount
+  };
 }
 
 module.exports = {

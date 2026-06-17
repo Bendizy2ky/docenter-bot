@@ -580,12 +580,30 @@ async function startBot() {
 
     const stats = await getGlobalStats();
     const conversionRate = stats.total > 0 ? ((stats.active / stats.total) * 100).toFixed(1) : 0;
+    const revenueEstimate = (stats.totalPurchased * 45).toLocaleString(); // Average 45 Naira per credit
 
     let message = `📊 *FileForge Bot Stats*\n\n` +
-      `👥 *Total Registered (Visitors):* ${stats.total}\n` +
-      `✅ *Converted Users (Active):* ${stats.active} (${conversionRate}%)\n\n` +
-      `🆕 *New Users (Last 24h):* ${stats.daily}\n` +
-      `📅 *New Users (Last 7d):* ${stats.weekly}\n`;
+      `👥 *User Growth*\n` + // User Growth section
+      `• Total Visitors: ${stats.total}\n` +
+      `  <i>(Total unique users who have ever interacted with the bot.)</i>\n` +
+      `• Active Users: ${stats.active} (${conversionRate}%)\n` +
+      `  <i>(Users who have successfully used at least one tool.)</i>\n` +
+      `• Friction (Joined but left): ${stats.dropOffCount}\n` +
+      `  <i>(Users who started the bot but never used any tool.)</i>\n\n` +
+      `💰 *Financial Health*\n` + // Financial Health section
+      `• Total Credits Sold: ${stats.totalPurchased.toLocaleString()}\n` +
+      `  <i>(Total credits purchased by all users through payment gateways.)</i>\n` +
+      `• System Liability (Unspent): ${stats.totalLiability.toLocaleString()} cr\n` +
+      `  <i>(Total unspent credits currently held by users. Represents future service obligations.)</i>\n` +
+      `• Est. Revenue: ~₦${revenueEstimate}\n` +
+      `  <i>(Estimated revenue based on total credits sold and average pack price.)</i>\n\n` +
+      `⚡ *Velocity (Last 24h)*\n` + // Velocity section
+      `• Usage: ${stats.creditsSpent24h} credits spent\n` +
+      `  <i>(Total credits consumed by users across all tools in the last 24 hours. Indicates recent bot activity.)</i>\n` +
+      `• Growth: +${stats.daily} users\n` +
+      `  <i>(New users who joined in the last 24 hours.)</i>\n\n` +
+      `📅 *New Users (Last 7d):* ${stats.weekly}\n` +
+      `  <i>(New users who joined in the last 7 days.)</i>\n`;
 
     message += `\n🎁 *Referral Growth:*\n` +
       `📈 *Total Successful Referrals:* ${stats.totalReferrals}\n`;
@@ -593,11 +611,13 @@ async function startBot() {
     if (stats.topReferrers && stats.topReferrers.length > 0) {
       message += `🏆 *Top Referrers:*\n`;
       stats.topReferrers.forEach((ref, i) => {
-        message += `${i + 1}. <code>${ref.id}</code> — ${ref.count} invites\n`;
+        message += `  ${i + 1}. <code>${ref.id}</code> — ${ref.count} invites\n`;
       });
+      message += `  <i>(Users who have successfully referred the most new active users.)</i>\n`;
     }
 
     if (stats.rankedTools && stats.rankedTools.length > 0) {
+      message += `\n`; // Add a newline for better spacing
       message += `\n🛠 *Most Used Tools (All Time):*\n`;
       stats.rankedTools.forEach(([tool, count], index) => {
         message += `${index + 1}. <code>${tool}</code>: ${count}\n`;
