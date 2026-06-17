@@ -105,7 +105,11 @@ async function startTask(token, taskType) {
 async function uploadFile(token, server, taskId, fileBuffer, fileName) {
   const form = new FormData();
   form.append('task', taskId);
-  form.append('file', fileBuffer, { filename: fileName, contentType: 'application/pdf' });
+
+  // Detect content type from filename to support Word-to-PDF correctly
+  const isPdf = fileName.toLowerCase().endsWith('.pdf');
+  const contentType = isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  form.append('file', fileBuffer, { filename: fileName, contentType });
 
   const response = await axios.post(
     `https://${server}/v1/upload`,
@@ -133,13 +137,17 @@ async function uploadFile(token, server, taskId, fileBuffer, fileName) {
  * @param {object} extraParams    - Any extra parameters for the task
  */
 async function processAndDownload(token, server, taskId, serverFilename, taskType, extraParams = {}) {
+  // Standardize the internal filename iLovePDF uses for processing
+  const isDocxInput = taskType === 'officepdf';
+  const internalFilename = isDocxInput ? 'file.docx' : 'file.pdf';
+
   // Step 1: Tell iLovePDF what to process
   await axios.post(
     `https://${server}/v1/process`,
     {
       task: taskId,
       tool: taskType,
-      files: [{ server_filename: serverFilename, filename: 'file.pdf' }],
+      files: [{ server_filename: serverFilename, filename: internalFilename }],
       ...extraParams,
     },
     { headers: { Authorization: `Bearer ${token}` }, timeout: 60000 }
@@ -160,7 +168,7 @@ async function processAndDownload(token, server, taskId, serverFilename, taskTyp
   // iLovePDF returns different binary types depending on the task (PDF for compress,
   // DOCX for office conversions). Only enforce ZIP/DOCX check when we expect a DOCX.
   const expectsDocx = (extraParams && String(extraParams.output_format || '').toLowerCase() === 'docx')
-    || (typeof taskType === 'string' && /pdfword|pdf2word|pdfocr|office|pdfworddoc/i.test(taskType));
+    || (typeof taskType === 'string' && /pdfword|pdf2word|office|pdfoffice/i.test(taskType));
   if (expectsDocx) {
     if (!isZipBuffer(buf)) {
       console.error('processAndDownload: downloaded result does not appear to be a ZIP/DOCX file. First bytes:', buf.slice(0,8));
@@ -243,7 +251,7 @@ async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
 
     // Try several possible iLovePDF task types — APIs sometimes change names.
     // Prefer the most commonly available tasks first to avoid 404s.
-    const candidateTasks = ['pdfocr', 'pdfword', 'pdf2word', 'pdfworddoc', 'office'];
+    const candidateTasks = ['pdfword', 'pdfoffice', 'pdf2word'];
     let lastErr = null;
     for (const taskType of candidateTasks) {
       try {
