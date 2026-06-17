@@ -79,15 +79,18 @@ async function getAuthToken() {
  * @param {string} taskType  - e.g. "compress" or "officepdf"
  */
 async function startTask(token, taskType) {
+  // Root Cause Fix: Ensure taskType is a plain string, never an array.
+  // Iteration oversights can sometimes pass an array element as an object/array.
+  const tool = Array.isArray(taskType) ? taskType[0] : taskType;
   try {
-    const url = `https://api.ilovepdf.com/v1/start/${taskType}`;
+    const url = `https://api.ilovepdf.com/v1/start/${tool}`;
     const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 });
     return {
       server: response.data.server,
       taskId: response.data.task,
     };
   } catch (err) {
-    console.error(`startTask failed for type=${taskType}:`, err.response?.status, err.response?.data || err.message);
+    console.error(`startTask failed for type=${tool}:`, err.response?.status, err.response?.data || err.message);
     throw err;
   }
 }
@@ -239,75 +242,95 @@ async function compressPdf(fileBuffer, fileName = 'file.pdf') {
 /**
  * pdfToWord
  * ─────────
- * Converts a PDF buffer to a .docx Word document buffer.
+ * Converts a PDF buffer to a .docx Word document buffer using Cloudmersive.
  *
  * @param {Buffer} fileBuffer  - The original PDF as a buffer
  * @param {string} fileName    - Original filename
  * @returns {object}           - { success, buffer } or { success: false, error }
  */
 async function pdfToWord(fileBuffer, fileName = 'file.pdf') {
+  if (!process.env.CLOUDMERSIVE_API_KEY) {
+    console.error('[PDF→Word] CLOUDMERSIVE_API_KEY not set');
+    return {
+      success: false,
+      error: 'PDF to Word conversion is not configured. Please contact support.'
+    };
+  }
+
   try {
-    const token = await getAuthToken();
-
-    // Try several possible iLovePDF task types — APIs sometimes change names.
-    // Prefer the most commonly available tasks first to avoid 404s.
-    const candidateTasks = ['pdfword', 'office', 'pdf2word', 'pdfoffice'];
-    let lastErr = null;
-    for (const taskType of candidateTasks) {
-      try {
-        const { server, taskId } = await startTask(token, taskType);
-        const serverFilename = await uploadFile(token, server, taskId, fileBuffer, fileName);
-        const wordBuffer = await processAndDownload(token, server, taskId, serverFilename, taskType);
-
-        // Verify the returned buffer looks like a DOCX (ZIP)
-        if (!isZipBuffer(wordBuffer)) {
-          console.warn(`pdfToWord: taskType=${taskType} returned non-ZIP result; will try next candidate.`);
-          lastErr = new Error('Downloaded result not a ZIP/DOCX');
-          continue;
-        }
-
-        return {
-          success: true,
-          buffer: wordBuffer,
-        };
-      } catch (err) {
-        lastErr = err;
-        // If it's a 404 / NotFound for this task type, try the next candidate
-        const status = err?.response?.status;
-        const data = err?.response?.data;
-        const url = err?.config?.url || '(unknown url)';
-        console.warn(`pdfToWord: taskType=${taskType} failed:`, status || err.message, url, data || '');
-        // If the tool name is invalid (404) or bad request (400), try the next candidate
-        if (status && (status === 404 || status === 400)) {
-          continue; // try next taskType
-        }
-        // For other errors, break and surface the error
-        break;
+    console.log('[PDF→Word] Starting conversion via Cloudmersive...');
+    
+    const FormData = require('form-data');
+    const axios = require('axios');
+    
+    const form = new FormData();
+    form.append('inputFile', fileBuffer, {
+      filename: fileName || 'document.pdf',
+      contentType: 'application/pdf',
+      knownLength: fileBuffer.length
+    });
+    
+    const response = await axios.post(
+      'https://api.cloudmersive.com/convert/pdf/to/docx',
+      form,
+      {
+        headers: {
+          'Apikey': process.env.CLOUDMERSIVE_API_KEY,
+          ...form.getHeaders()
+        },
+        responseType: 'arraybuffer',
+        timeout: 120000
       }
+    );
+    
+    // Verify response is a valid DOCX file
+    // DOCX files start with PK (zip format: 0x50 0x4B)
+    const resultBuffer = Buffer.from(response.data);
+    if (resultBuffer.length < 4) {
+      throw new Error('Cloudmersive returned empty response');
     }
-
-    // If iLovePDF attempts failed, try a local LibreOffice (soffice) fallback if available
-    console.warn('All iLovePDF PDF→Word candidates failed initialization.');
-    if (isSofficeAvailable()) {
-      console.warn('Local LibreOffice detected — attempting fallback conversion...');
-      try {
-        const local = await tryLocalLibreOfficeConversion(fileBuffer, fileName);
-        if (local && local.success) {
-          return { success: true, buffer: local.buffer };
-        }
-      } catch (le) {
-        console.error('Local LibreOffice conversion attempt failed:', le?.message || le);
-      }
-      console.error('PDF to Word failed for all iLovePDF task types and local conversion failed:', lastErr?.response?.data || lastErr?.message || lastErr);
-      return { success: false, error: 'Failed to convert PDF to Word. Remote service returned an error and local conversion failed.' };
-    } else {
-      console.error('PDF to Word failed and LibreOffice is not installed on this host. iLovePDF error:', lastErr?.response?.data || lastErr?.message || lastErr);
-      return { success: false, error: 'Failed to convert PDF to Word. iLovePDF failed and LibreOffice is not installed on the server.' };
+    
+    const isValidDocx = resultBuffer[0] === 0x50 && 
+                        resultBuffer[1] === 0x4B;
+    if (!isValidDocx) {
+      const preview = resultBuffer.toString('utf8').slice(0, 200);
+      console.error('[PDF→Word] Invalid DOCX response:', preview);
+      throw new Error('Cloudmersive did not return a valid DOCX file');
     }
-
+    
+    console.log(`[PDF→Word] Success. Output size: ${resultBuffer.length} bytes`);
+    
+    return {
+      success: true,
+      buffer: resultBuffer,
+      outputFileName: fileName 
+        ? fileName.replace(/\.pdf$/i, '.docx') 
+        : 'converted.docx'
+    };
+    
   } catch (error) {
-    console.error('PDF to Word error:', error.response?.data || error.message);
-    return { success: false, error: 'Failed to convert PDF to Word.' };
+    const status = error.response?.status || 0;
+    console.error(`[PDF→Word] Cloudmersive error (${status}):`, 
+      error.message);
+    
+    if (status === 401) {
+      return {
+        success: false,
+        error: 'PDF to Word conversion service authentication failed. Contact support.'
+      };
+    }
+    
+    if (status === 429) {
+      return {
+        success: false,
+        error: 'PDF to Word conversion limit reached for today. Please try again tomorrow.'
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'Failed to convert PDF to Word. Please ensure your PDF contains readable text and try again.'
+    };
   }
 }
 
