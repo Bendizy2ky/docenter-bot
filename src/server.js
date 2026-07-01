@@ -6,6 +6,7 @@
 
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const crypto = require('crypto');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
@@ -46,6 +47,21 @@ function authenticateToken(req, res, next) {
   });
 }
 
+function requireAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
+  }
+}
+
 /**
  * verifyPaystackSignature
  * Verifies HMAC SHA512 signature from Paystack using raw body
@@ -68,6 +84,15 @@ function verifyPaystackSignature(rawBody, signature) {
 function startServer() {
   const app = express();
   const port = process.env.PORT || 3000;
+
+  app.use(cors({
+    origin: [
+      'http://localhost:3000',
+      'https://your-vercel-app.vercel.app',
+      process.env.WEB_APP_URL,
+    ].filter(Boolean),
+    credentials: true,
+  }));
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
@@ -205,10 +230,10 @@ function startServer() {
 
   app.post('/api/auth/signup', async (req, res) => {
     try {
-      const { email, password } = req.body || {};
+      const { name, email, password } = req.body || {};
 
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required.' });
+      if (!name || !email || !password) {
+        return res.status(400).json({ error: 'Name, email and password are required' });
       }
 
       const normalizedEmail = String(email).trim().toLowerCase();
@@ -224,18 +249,20 @@ function startServer() {
       }
 
       if (existingUser) {
-        return res.status(409).json({ error: 'User already exists.' });
+        return res.status(409).json({ error: 'An account with this email already exists' });
       }
 
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(password, salt);
-      const userId = `web-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      const hash = await bcrypt.hash(password, 12);
+      const userId = 'web_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const referralCode = 'FF-' + userId.slice(-4).toUpperCase() + Math.random().toString(36).slice(2, 4).toUpperCase();
 
       const { error: insertError } = await supabase.from('users').insert({
         user_id: userId,
         email: normalizedEmail,
-        password_hash: passwordHash,
+        password_hash: hash,
+        display_name: name,
         credits: 15,
+        referral_code: referralCode,
         signup_source: 'web',
         joined_at: new Date().toISOString(),
       });
@@ -245,8 +272,22 @@ function startServer() {
         return res.status(500).json({ error: 'Unable to create account.' });
       }
 
-      const token = jwt.sign({ userId, email: normalizedEmail }, process.env.JWT_SECRET, { expiresIn: '7d' });
-      return res.status(201).json({ token, user: { userId, email: normalizedEmail, credits: 15, signupSource: 'web' } });
+      const token = jwt.sign(
+        { userId, email: normalizedEmail, source: 'web' },
+        process.env.JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+
+      return res.status(201).json({
+        success: true,
+        token,
+        user: {
+          userId,
+          name,
+          email: normalizedEmail,
+          credits: 15,
+        },
+      });
     } catch (err) {
       console.error('Signup error:', err && err.message);
       return res.status(500).json({ error: 'Signup failed.' });
@@ -258,7 +299,7 @@ function startServer() {
       const { email, password } = req.body || {};
 
       if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required.' });
+        return res.status(400).json({ error: 'Email and password are required' });
       }
 
       const normalizedEmail = String(email).trim().toLowerCase();
@@ -274,19 +315,101 @@ function startServer() {
       }
 
       if (!user || !user.password_hash) {
-        return res.status(401).json({ error: 'Invalid credentials.' });
+        return res.status(401).json({ error: 'Invalid email or password' });
       }
 
-      const passwordMatch = await bcrypt.compare(password, user.password_hash);
-      if (!passwordMatch) {
-        return res.status(401).json({ error: 'Invalid credentials.' });
+      const match = await bcrypt.compare(password, user.password_hash);
+      if (!match) {
+        return res.status(401).json({ error: 'Invalid email or password' });
       }
 
-      const token = jwt.sign({ userId: user.user_id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
-      return res.json({ token, user: { userId: user.user_id, email: user.email, credits: user.credits || 0, signupSource: user.signup_source || null } });
+      const token = jwt.sign(
+        { userId: user.user_id, email: user.email, source: 'web' },
+        process.env.JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+
+      return res.status(200).json({
+        success: true,
+        token,
+        user: {
+          userId: user.user_id,
+          name: user.display_name,
+          email: user.email,
+          credits: user.credits,
+        },
+      });
     } catch (err) {
       console.error('Login error:', err && err.message);
       return res.status(500).json({ error: 'Login failed.' });
+    }
+  });
+
+  app.get('/api/user/me', requireAuth, async (req, res) => {
+    try {
+      const userId = req.user && req.user.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Fetch user error:', error.message);
+        return res.status(500).json({ error: 'Unable to load user profile.' });
+      }
+
+      if (!user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      return res.status(200).json({
+        userId: user.user_id,
+        name: user.display_name,
+        email: user.email,
+        credits: user.credits,
+        referralCode: user.referral_code,
+        joinedAt: user.joined_at,
+      });
+    } catch (err) {
+      console.error('Get user profile error:', err && err.message);
+      return res.status(500).json({ error: 'Unable to load user profile.' });
+    }
+  });
+
+  app.get('/api/user/balance', requireAuth, async (req, res) => {
+    try {
+      const userId = req.user && req.user.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('credits, referral_code')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Fetch balance error:', error.message);
+        return res.status(500).json({ error: 'Unable to load balance.' });
+      }
+
+      if (!user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      return res.status(200).json({
+        credits: user.credits,
+        referralCode: user.referral_code,
+      });
+    } catch (err) {
+      console.error('Get balance error:', err && err.message);
+      return res.status(500).json({ error: 'Unable to load balance.' });
     }
   });
 
