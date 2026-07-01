@@ -17,6 +17,7 @@
   "dependencies": {
     "@ilovepdf/ilovepdf-nodejs": "^0.3.1",
     "@paystack/paystack-sdk": "^1.0.1",
+    "@supabase/supabase-js": "^2.110.0",
     "axios": "^1.17.0",
     "cloudinary": "^2.5.1",
     "docx": "^9.7.1",

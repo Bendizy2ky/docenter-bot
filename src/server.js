@@ -4,11 +4,18 @@
 // Exports startServer()
 // ─────────────────────────────────────────────
 
+require('dotenv').config();
 const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
-const { verifyPayment } = require('./payments');
+const { createClient } = require('@supabase/supabase-js');
+const { verifyPayment, CREDIT_PACKS } = require('./payments');
 const { addCredits } = require('./credits');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY
+);
 
 /**
  * verifyPaystackSignature
@@ -72,10 +79,30 @@ function startServer() {
 
       const telegramId = verification.telegramId;
       const creditsToAdd = Number(verification.credits) || 0;
+      const packKey = verification.packKey;
+      const pack = CREDIT_PACKS[packKey] || { name: packKey || 'Credit Pack', credits: creditsToAdd };
+      const amountPaid = Number(event?.data?.amount || 0) / 100;
 
       if (telegramId && creditsToAdd > 0) {
         try {
           const newBal = await addCredits(String(telegramId), creditsToAdd);
+
+          try {
+            await supabase.from('credit_purchases').insert({
+              user_id: String(telegramId),
+              pack_name: pack.name,
+              pack_key: packKey,
+              credits_added: pack.credits,
+              amount_paid: amountPaid,
+              paystack_reference: reference,
+              status: 'confirmed',
+              source: 'telegram',
+              confirmed_at: new Date().toISOString(),
+            });
+          } catch (dbErr) {
+            console.error('Failed to log credit purchase:', dbErr && dbErr.message);
+          }
+
           // Notify user on Telegram
           if (process.env.TELEGRAM_BOT_TOKEN) {
             const text = `✅ Payment confirmed! ${creditsToAdd} credits have been added.\nYour new balance: ${newBal} credits.\nType /start to continue.`;
