@@ -8,14 +8,43 @@ require('dotenv').config();
 const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const { verifyPayment, CREDIT_PACKS } = require('./payments');
-const { addCredits } = require('./credits');
+const { addCredits, getCredits, deductCredits } = require('./credits');
+const { compressPdf } = require('./services/pdf');
+const { removeBackground } = require('./services/image');
+
+// Configure multer for handling memory-stored file uploads (max 20MB)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY
 );
+
+// JWT Authentication Middleware for Web Routes
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access denied. Token missing.' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token.' });
+    }
+    req.user = user;
+    next();
+  });
+}
 
 /**
  * verifyPaystackSignature
@@ -39,6 +68,9 @@ function verifyPaystackSignature(rawBody, signature) {
 function startServer() {
   const app = express();
   const port = process.env.PORT || 3000;
+
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   // Paystack webhook - must use raw body for signature verification
   app.post('/paystack/webhook', express.raw({ type: '*/*' }), async (req, res) => {
@@ -171,11 +203,175 @@ function startServer() {
     res.send(html);
   });
 
+  app.post('/api/auth/signup', async (req, res) => {
+    try {
+      const { email, password } = req.body || {};
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+      }
+
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const { data: existingUser, error: lookupError } = await supabase
+        .from('users')
+        .select('user_id')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (lookupError) {
+        console.error('Signup lookup error:', lookupError.message);
+        return res.status(500).json({ error: 'Unable to process signup.' });
+      }
+
+      if (existingUser) {
+        return res.status(409).json({ error: 'User already exists.' });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(password, salt);
+      const userId = `web-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+      const { error: insertError } = await supabase.from('users').insert({
+        user_id: userId,
+        email: normalizedEmail,
+        password_hash: passwordHash,
+        credits: 15,
+        signup_source: 'web',
+        joined_at: new Date().toISOString(),
+      });
+
+      if (insertError) {
+        console.error('Signup insert error:', insertError.message);
+        return res.status(500).json({ error: 'Unable to create account.' });
+      }
+
+      const token = jwt.sign({ userId, email: normalizedEmail }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      return res.status(201).json({ token, user: { userId, email: normalizedEmail, credits: 15, signupSource: 'web' } });
+    } catch (err) {
+      console.error('Signup error:', err && err.message);
+      return res.status(500).json({ error: 'Signup failed.' });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body || {};
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+      }
+
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Login lookup error:', error.message);
+        return res.status(500).json({ error: 'Unable to process login.' });
+      }
+
+      if (!user || !user.password_hash) {
+        return res.status(401).json({ error: 'Invalid credentials.' });
+      }
+
+      const passwordMatch = await bcrypt.compare(password, user.password_hash);
+      if (!passwordMatch) {
+        return res.status(401).json({ error: 'Invalid credentials.' });
+      }
+
+      const token = jwt.sign({ userId: user.user_id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      return res.json({ token, user: { userId: user.user_id, email: user.email, credits: user.credits || 0, signupSource: user.signup_source || null } });
+    } catch (err) {
+      console.error('Login error:', err && err.message);
+      return res.status(500).json({ error: 'Login failed.' });
+    }
+  });
+
+  app.get('/api/user/profile', authenticateToken, async (req, res) => {
+    try {
+      const userId = req.user && (req.user.userId || req.user.user_id || req.user.id);
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated.' });
+      }
+
+      const balance = await getCredits(userId);
+      return res.json({ userId, credits: balance });
+    } catch (err) {
+      console.error('Profile error:', err && err.message);
+      return res.status(500).json({ error: 'Unable to load profile.' });
+    }
+  });
+
+  app.post('/api/tools/compress-pdf', authenticateToken, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+      }
+
+      const userId = req.user && (req.user.userId || req.user.user_id || req.user.id);
+      const balance = await getCredits(userId);
+      if (balance <= 0) {
+        return res.status(402).json({ error: 'Insufficient credits.' });
+      }
+
+      const result = await compressPdf(req.file.buffer, req.file.originalname || 'file.pdf');
+      if (!result || !result.success || !result.buffer) {
+        return res.status(500).json({ error: result && result.error ? result.error : 'Compression failed.' });
+      }
+
+      await deductCredits(userId, 1, 'compress-pdf');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${(req.file.originalname || 'compressed.pdf').replace(/\.pdf$/i, '')}-compressed.pdf"`);
+      return res.send(result.buffer);
+    } catch (err) {
+      console.error('Compress PDF error:', err && err.message);
+      return res.status(500).json({ error: 'Compression failed.' });
+    }
+  });
+
+  app.post('/api/tools/remove-background', authenticateToken, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+      }
+
+      const userId = req.user && (req.user.userId || req.user.user_id || req.user.id);
+      const balance = await getCredits(userId);
+      if (balance <= 0) {
+        return res.status(402).json({ error: 'Insufficient credits.' });
+      }
+
+      const result = await removeBackground(req.file.buffer);
+      if (!result || !result.success || !result.buffer) {
+        return res.status(500).json({ error: result && result.error ? result.error : 'Background removal failed.' });
+      }
+
+      await deductCredits(userId, 1, 'remove-background');
+
+      res.setHeader('Content-Type', result.outputMimeType || 'image/png');
+      res.setHeader('Content-Disposition', 'attachment; filename="removed-background.png"');
+      return res.send(result.buffer);
+    } catch (err) {
+      console.error('Remove background error:', err && err.message);
+      return res.status(500).json({ error: 'Background removal failed.' });
+    }
+  });
+
   app.listen(port, () => {
     console.log(`✅ Express server running on port ${port} (Paystack webhook endpoints available)`);
   });
 
   return app;
 }
+
+
+
+
+
+
 
 module.exports = { startServer };
