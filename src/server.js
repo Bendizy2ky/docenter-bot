@@ -484,7 +484,7 @@ function startServer() {
     }
   });
 
-      app.listen(port, "0.0.0.0", () => {
+  app.listen(port, () => {
     console.log(`✅ Express server running on port ${port} (Paystack webhook endpoints available)`);
   });
 
