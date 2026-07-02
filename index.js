@@ -9,6 +9,9 @@ try {
 	const { startBot } = require('./src/bot');
 	const { startServer } = require('./src/server');
 
+	// Prevent multiple polling instances
+process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+
 	// Start HTTP server (webhooks/callbacks)
 	try { startServer(); } catch (e) { console.error('Failed to start server:', e && e.message); }
 
